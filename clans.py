@@ -9,7 +9,7 @@ CLAN_FILE = "database/clans.json"
 WAR_FILE = "database/clan_wars.json"
 PLAYERS_FILE = "database/players.json"
 
-ANALISTA_ROLE_ID = 000000000000
+ANALISTA_ROLE_ID = 1399531186472226898
 
 SLOT_PRICES = {
     6: 10,
