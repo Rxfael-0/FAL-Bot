@@ -1,8 +1,13 @@
-import json
 import discord
-from datetime import datetime
+from discord.ext import commands
+import json
+import asyncio
+from datetime import datetime, timedelta
 
-FILE = "database/clans.json"
+CLAN_FILE = "database/clans.json"
+WAR_FILE = "database/clan_wars.json"
+
+ANALISTA_ROLE_ID = 000000000000
 
 SLOT_PRICES = {
     6: 10,
@@ -12,204 +17,376 @@ SLOT_PRICES = {
     10: 30
 }
 
-CLAN_SHOP = {
+CUSTOM_PRICES = {
     "logo": 2,
     "nome": 3,
     "cor": 5,
     "destaque": 10
 }
 
-# ================= LOAD =================
+# ================= JSON =================
 
-def load():
+def load(path):
     try:
-        with open(FILE, "r") as f:
+        with open(path, "r") as f:
             return json.load(f)
     except:
         return {}
 
-def save(data):
-    with open(FILE, "w") as f:
+def save(path, data):
+    with open(path, "w") as f:
         json.dump(data, f, indent=4)
+
+# ================= EMBED =================
+
+def clan_embed(name, clan):
+
+    embed = discord.Embed(
+        title=f"🏰 {name}",
+        color=discord.Color.red()
+    )
+
+    embed.add_field(name="👑 Líder", value=f"<@{clan['leader']}>", inline=False)
+
+    colider = clan.get("co_leader")
+
+    embed.add_field(
+        name="🛡️ Co-líder",
+        value=f"<@{colider}>" if colider else "Nenhum",
+        inline=False
+    )
+
+    members = "\n".join([f"<@{m}>" for m in clan["members"]])
+
+    embed.add_field(name="👥 Membros", value=members, inline=False)
+
+    embed.add_field(name="🏆 Vitórias", value=clan["wins"])
+    embed.add_field(name="❌ Derrotas", value=clan["losses"])
+    embed.add_field(name="🏳️ Desistências", value=clan["surrenders"])
+
+    embed.add_field(name="📦 Slots", value=clan["max_slots"])
+
+    embed.add_field(name="💤 Status", value=clan["status"])
+
+    embed.add_field(name="🕒 Última atividade", value=clan["last_activity"])
+
+    return embed
 
 # ================= SETUP =================
 
 def setup_clans(bot):
 
-    # ================= CREATE CLAN =================
+    # ================= CREATE =================
     @bot.command()
-    async def criarclan(ctx, name: str):
+    async def criarclan(ctx, nome: str):
 
-        from ranked import load, save, get_player
+        clans = load(CLAN_FILE)
 
-        players = load()
-        player = get_player(players, ctx.author.id)
+        if nome in clans:
+            return await ctx.send("❌ Clã já existe.")
 
-        if player["moedas"] < 1:
-            return await ctx.send("❌ precisa 1 moeda")
+        role = await ctx.guild.create_role(name=nome)
 
-        player["moedas"] -= 1
-        save(players)
+        overwrites = {
+            ctx.guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            role: discord.PermissionOverwrite(read_messages=True)
+        }
 
-        data = load()
+        channel = await ctx.guild.create_text_channel(
+            f"🏰-{nome}",
+            overwrites=overwrites
+        )
 
-        if name in data:
-            return await ctx.send("❌ já existe")
-
-        data[name] = {
+        clans[nome] = {
             "leader": str(ctx.author.id),
+            "co_leader": None,
             "members": [str(ctx.author.id)],
+            "wins": 0,
+            "losses": 0,
+            "surrenders": 0,
+            "history": [],
+            "status": "🟢 Ativo",
+            "last_activity": str(datetime.now().strftime("%d/%m/%Y")),
             "max_slots": 5,
+            "role_id": role.id,
+            "channel_id": channel.id,
+            "message_id": None,
             "logo": None,
             "cor": None,
             "destaque": False,
-            "created_at": str(datetime.now().strftime("%d/%m/%Y"))
+            "war_cooldown": None
         }
 
-        save(data)
+        await ctx.author.add_roles(role)
 
-        await ctx.send(f"🏰 Clã {name} criado!")
+        msg = await channel.send(
+            embed=clan_embed(nome, clans[nome])
+        )
 
-    # ================= INFO =================
+        clans[nome]["message_id"] = msg.id
+
+        save(CLAN_FILE, clans)
+
+        await ctx.send(f"🏰 Clã {nome} criado!")
+
+    # ================= UPDATE PANEL =================
+    async def update_panel(guild, clan_name):
+
+        clans = load(CLAN_FILE)
+
+        clan = clans[clan_name]
+
+        channel = guild.get_channel(clan["channel_id"])
+
+        try:
+            msg = await channel.fetch_message(clan["message_id"])
+
+            await msg.edit(
+                embed=clan_embed(clan_name, clan)
+            )
+
+        except:
+            pass
+
+    # ================= SET COLEADER =================
     @bot.command()
-    async def clan(ctx, name: str):
+    async def setcolider(ctx, clan_name: str, member: discord.Member):
 
-        data = load()
+        clans = load(CLAN_FILE)
 
-        if name not in data:
-            return await ctx.send("❌ não existe")
+        clan = clans[clan_name]
 
-        c = data[name]
+        if str(ctx.author.id) != clan["leader"]:
+            return await ctx.send("❌ Só líder.")
 
-        embed = discord.Embed(title=f"🏰 {name}")
+        clan["co_leader"] = str(member.id)
 
-        embed.add_field(name="👑 Líder", value=f"<@{c['leader']}>", inline=False)
-        embed.add_field(name="👥 Membros", value=len(c["members"]), inline=True)
-        embed.add_field(name="📦 Slots", value=c.get("max_slots", 5), inline=True)
-        embed.add_field(name="📌 Destaque", value=str(c["destaque"]), inline=True)
+        save(CLAN_FILE, clans)
 
-        await ctx.send(embed=embed)
+        await update_panel(ctx.guild, clan_name)
 
-    # ================= JOIN =================
+        await ctx.send("🛡️ Co-líder definido.")
+
+    # ================= JOIN REQUEST =================
     @bot.command()
-    async def entrarclan(ctx, name: str):
+    async def solicitar(ctx, clan_name: str):
 
-        data = load()
+        clans = load(CLAN_FILE)
 
-        if name not in data:
-            return await ctx.send("❌ não existe")
+        clan = clans[clan_name]
 
-        c = data[name]
+        if "requests" not in clan:
+            clan["requests"] = []
+
+        clan["requests"].append(str(ctx.author.id))
+
+        save(CLAN_FILE, clans)
+
+        await ctx.send("📩 Solicitação enviada.")
+
+    # ================= ACCEPT =================
+    @bot.command()
+    async def aceitar(ctx, clan_name: str, member: discord.Member):
+
+        clans = load(CLAN_FILE)
+
+        clan = clans[clan_name]
+
         uid = str(ctx.author.id)
 
-        if uid in c["members"]:
-            return await ctx.send("já está no clã")
+        if uid not in [clan["leader"], clan.get("co_leader")]:
+            return await ctx.send("❌ Sem permissão.")
 
-        if len(c["members"]) >= c.get("max_slots", 5):
-            return await ctx.send("❌ clã cheio")
+        role = ctx.guild.get_role(clan["role_id"])
 
-        c["members"].append(uid)
+        await member.add_roles(role)
 
-        save(data)
+        clan["members"].append(str(member.id))
 
-        await ctx.send("✅ entrou no clã")
+        if str(member.id) in clan["requests"]:
+            clan["requests"].remove(str(member.id))
 
-    # ================= UPGRADE SLOTS =================
+        save(CLAN_FILE, clans)
+
+        await update_panel(ctx.guild, clan_name)
+
+        await ctx.send("✅ Membro aprovado.")
+
+    # ================= REMOVE =================
     @bot.command()
-    async def upgradarclan(ctx, name: str):
+    async def removermembro(ctx, clan_name: str, member: discord.Member):
 
-        from ranked import load as l, save as s, get_player
+        clans = load(CLAN_FILE)
 
-        data = load()
+        clan = clans[clan_name]
 
-        if name not in data:
-            return await ctx.send("❌ não existe")
+        uid = str(ctx.author.id)
 
-        c = data[name]
+        if uid not in [clan["leader"], clan.get("co_leader")]:
+            return await ctx.send("❌ Sem permissão.")
 
-        if str(ctx.author.id) != c["leader"]:
-            return await ctx.send("❌ só líder")
+        role = ctx.guild.get_role(clan["role_id"])
 
-        current = c.get("max_slots", 5)
+        await member.remove_roles(role)
 
-        if current >= 10:
-            return await ctx.send("máximo atingido")
+        clan["members"].remove(str(member.id))
 
-        next_slot = current + 1
-        price = SLOT_PRICES[next_slot]
+        save(CLAN_FILE, clans)
 
-        players = l()
-        player = get_player(players, ctx.author.id)
+        await update_panel(ctx.guild, clan_name)
 
-        if player["moedas"] < price:
-            return await ctx.send("❌ sem moedas")
-
-        player["moedas"] -= price
-        c["max_slots"] = next_slot
-
-        s(players)
-        save(data)
-
-        await ctx.send(f"🏰 slots aumentados para {next_slot}")
-
-    # ================= CLAN SHOP =================
-    @bot.command()
-    async def clancustom(ctx, name: str, item: str, *, value=None):
-
-        from ranked import load as l, save as s, get_player
-
-        data = load()
-
-        if name not in data:
-            return await ctx.send("❌ não existe")
-
-        c = data[name]
-
-        if str(ctx.author.id) != c["leader"]:
-            return await ctx.send("❌ só líder")
-
-        if item not in CLAN_SHOP:
-            return await ctx.send("❌ item inválido")
-
-        price = CLAN_SHOP[item]
-
-        players = l()
-        player = get_player(players, ctx.author.id)
-
-        if player["moedas"] < price:
-            return await ctx.send("❌ sem moedas")
-
-        player["moedas"] -= price
-
-        c[item] = value if value else True
-
-        s(players)
-        save(data)
-
-        await ctx.send(f"✨ Clã atualizado: {item}")
+        await ctx.send("❌ Membro removido.")
 
     # ================= CLAN WAR =================
     @bot.command()
-    async def clanwar(ctx, clan1: str, clan2: str):
+    async def clanwar(ctx, desafiante: str, adversario: str):
 
-        data = load()
+        clans = load(CLAN_FILE)
+        wars = load(WAR_FILE)
 
-        if clan1 not in data or clan2 not in data:
-            return await ctx.send("❌ clã não existe")
+        if desafiante not in clans or adversario not in clans:
+            return await ctx.send("❌ Clã não existe.")
 
-        await ctx.send(
-            f"⚔️ CLAN WAR!\n"
-            f"{clan1} VS {clan2}\n\n"
-            "Aguardando resultado manual..."
+        war_id = str(len(wars) + 1)
+
+        wars[war_id] = {
+            "challenger": desafiante,
+            "enemy": adversario,
+            "status": "pending",
+            "created": str(datetime.now())
+        }
+
+        save(WAR_FILE, wars)
+
+        role1 = ctx.guild.get_role(clans[desafiante]["role_id"])
+        role2 = ctx.guild.get_role(clans[adversario]["role_id"])
+
+        msg = await ctx.send(
+            f"⚔️ {role1.mention} desafiou {role2.mention}\n"
+            "✅ aceitar\n"
+            "❌ desistir"
         )
 
-    # ================= RESULT WAR =================
+        async def timer():
+
+            await asyncio.sleep(3600)
+
+            await ctx.send("⏳ 1h restante.")
+
+            await asyncio.sleep(3000)
+
+            await ctx.send("⚠️ 10 minutos restantes.")
+
+            await asyncio.sleep(600)
+
+            wars = load(WAR_FILE)
+
+            if wars[war_id]["status"] == "pending":
+
+                wars[war_id]["status"] = "surrender"
+
+                clans[adversario]["surrenders"] += 1
+
+                save(WAR_FILE, wars)
+                save(CLAN_FILE, clans)
+
+        bot.loop.create_task(timer())
+
+    # ================= ACCEPT WAR =================
     @bot.command()
-    async def warresult(ctx, winner: str):
+    async def aceitarwar(ctx, war_id: str):
 
-        data = load()
+        wars = load(WAR_FILE)
 
-        if winner not in data:
-            return await ctx.send("❌ clã não existe")
+        if war_id not in wars:
+            return await ctx.send("❌ guerra não existe")
 
-        await ctx.send(f"🏆 {winner} venceu a guerra!")
+        wars[war_id]["status"] = "accepted"
+
+        save(WAR_FILE, wars)
+
+        role = ctx.guild.get_role(ANALISTA_ROLE_ID)
+
+        await ctx.send(
+            f"✅ Guerra aceita!\n{role.mention}"
+        )
+
+    # ================= RESULT =================
+    @bot.command()
+    async def resultado(ctx, war_id: str, placar: str):
+
+        if ANALISTA_ROLE_ID not in [r.id for r in ctx.author.roles]:
+            return await ctx.send("❌ Apenas Analista Técnico.")
+
+        clans = load(CLAN_FILE)
+        wars = load(WAR_FILE)
+
+        war = wars[war_id]
+
+        challenger = war["challenger"]
+        enemy = war["enemy"]
+
+        if placar in ["2x0", "2x1"]:
+
+            clans[challenger]["wins"] += 1
+            clans[enemy]["losses"] += 1
+
+            winner = challenger
+
+        else:
+
+            clans[enemy]["wins"] += 1
+            clans[challenger]["losses"] += 1
+
+            winner = enemy
+
+        clans[winner]["history"].append(
+            f"🏆 venceu guerra ({placar})"
+        )
+
+        wars[war_id]["status"] = "finished"
+
+        save(CLAN_FILE, clans)
+        save(WAR_FILE, wars)
+
+        canal = discord.utils.get(
+            ctx.guild.channels,
+            name="🏆・resultados"
+        )
+
+        if canal:
+            await canal.send(
+                f"🏆 {winner} venceu a clan war ({placar})"
+            )
+
+        await update_panel(ctx.guild, challenger)
+        await update_panel(ctx.guild, enemy)
+
+        await ctx.send("🏆 Resultado registrado.")
+
+    # ================= LEADERBOARD =================
+    @bot.command()
+    async def clanlb(ctx):
+
+        clans = load(CLAN_FILE)
+
+        ranking = sorted(
+            clans.items(),
+            key=lambda x: x[1]["wins"],
+            reverse=True
+        )
+
+        embed = discord.Embed(
+            title="🏆 Clan Leaderboard",
+            color=discord.Color.gold()
+        )
+
+        for i, (name, c) in enumerate(ranking[:10], start=1):
+
+            embed.add_field(
+                name=f"{i}º {name}",
+                value=f"🏆 {c['wins']} vitórias",
+                inline=False
+            )
+
+        await ctx.send(embed=embed)
