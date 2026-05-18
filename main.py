@@ -2,6 +2,11 @@ import discord
 from discord.ext import commands
 import os
 import json
+import random
+import asyncio
+
+from modules.logs import add_match_log
+from modules.leaderboard import create_leaderboard_image
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -9,10 +14,9 @@ intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-DATABASE = "database/player.json"
-
-
 # ================= DATABASE =================
+
+DATABASE = "database/player.json"
 
 def load_data():
     try:
@@ -25,152 +29,153 @@ def save_data(data):
     with open(DATABASE, "w") as f:
         json.dump(data, f, indent=4)
 
-
 def get_player(data, user_id):
     if str(user_id) not in data:
         data[str(user_id)] = {
             "trofeus": 0,
-            "rank": "R1",
-            "league": "L1",
             "medalhas": 0
         }
     return data[str(user_id)]
 
+# ================= MATCH =================
 
-# ================= RANK SYSTEM =================
+queue = []
+cooldown = False
+active_matches = {}
+
+# ================= RANK =================
 
 def get_rank(t):
-    if t < 100:
-        return "R1 | Ascendant L1"
-    elif t < 300:
-        return "R2 | Dominant L1"
-    elif t < 500:
-        return "R3 | Elite L1"
-    elif t < 700:
-        return "R4 | Supreme L1"
-    elif t < 1000:
-        return "R5 | Legendary L1"
-    elif t < 1400:
-        return "R6 | Mythic L2"
-    elif t < 1900:
-        return "R7 | Titan L2"
-    elif t < 2400:
-        return "R8 | Absolute L2"
-    elif t < 3000:
-        return "R9 | Diamond L2"
-    elif t < 3700:
-        return "R10 | Infinit L3 WWW"
-    elif t < 4400:
-        return "R11 | Sovereign L3"
-    else:
-        return "R12 | FAL BEAST L3"
-
+    if t < 100: return "R1"
+    elif t < 300: return "R2"
+    elif t < 500: return "R3"
+    elif t < 700: return "R4"
+    elif t < 1000: return "R5"
+    elif t < 1400: return "R6"
+    elif t < 1900: return "R7"
+    elif t < 2400: return "R8"
+    elif t < 3000: return "R9"
+    elif t < 3700: return "R10"
+    elif t < 4400: return "R11"
+    return "R12"
 
 def get_league(t):
-    if t < 1000:
-        return "L1"
-    elif t < 3000:
-        return "L2"
-    else:
-        return "L3"
-
+    if t < 1000: return "L1"
+    elif t < 3000: return "L2"
+    return "L3"
 
 # ================= EVENTS =================
 
 @bot.event
 async def on_ready():
-    print(f"Bot ligado como {bot.user}")
+    print(f"Bot online: {bot.user}")
 
-
-# ================= PERFIL =================
-
-@bot.command()
-async def perfil(ctx, member: discord.Member = None):
-    if member is None:
-        member = ctx.author
-
-    data = load_data()
-    player = get_player(data, member.id)
-
-    save_data(data)
-
-    embed = discord.Embed(
-        title=f"🏆 Perfil de {member.name}",
-        description="Sistema Ranked Competitivo",
-        color=discord.Color.red()
-    )
-
-    embed.add_field(name="🏆 Troféus", value=player["trofeus"], inline=False)
-    embed.add_field(name="📊 Rank", value=player["rank"], inline=False)
-    embed.add_field(name="⚔️ League", value=player["league"], inline=False)
-    embed.add_field(name="🎖️ Medalhas", value=player["medalhas"], inline=False)
-
-    await ctx.send(embed=embed)
-
-
-# ================= TROFÉUS =================
+# ================= FILA =================
 
 @bot.command()
-async def addtrofeu(ctx, quantidade: int, member: discord.Member):
-    data = load_data()
+async def entrarfila(ctx):
+    global queue, cooldown
 
-    player = get_player(data, member.id)
-    player["trofeus"] += quantidade
+    if cooldown:
+        return await ctx.send("⏳ Cooldown ativo.")
 
-    player["rank"] = get_rank(player["trofeus"])
-    player["league"] = get_league(player["trofeus"])
+    if ctx.author.id in queue:
+        return await ctx.send("⚠️ Já está na fila.")
 
-    if player["trofeus"] >= 5000:
-        player["medalhas"] += 1
+    queue.append(ctx.author.id)
 
-    save_data(data)
+    await ctx.send(f"🎯 {ctx.author.mention} entrou na fila ({len(queue)}/4)")
+
+    if len(queue) >= 4:
+        await start_match(ctx)
+
+@bot.command()
+async def sairfila(ctx):
+    if ctx.author.id in queue:
+        queue.remove(ctx.author.id)
+        await ctx.send("🚪 Saiu da fila.")
+
+# ================= MATCH =================
+
+async def start_match(ctx):
+    global queue, cooldown, active_matches
+
+    players = queue[:4]
+    queue = []
+
+    match_id = random.randint(1000, 9999)
+    active_matches[match_id] = players
+
+    mentions = [f"<@{p}>" for p in players]
 
     await ctx.send(
-        f"🏆 {member.mention} ganhou **{quantidade}** troféus!\n"
-        f"📊 {player['rank']} | {player['league']}"
+        f"⚔️ MATCH #{match_id}\n" +
+        " VS ".join(mentions) +
+        "\n🏁 Use !resultado para finalizar"
     )
 
+    cooldown = True
+    await asyncio.sleep(1200)
+    cooldown = False
+
+# ================= RESULTADO =================
 
 @bot.command()
-async def removetrofeu(ctx, quantidade: int, member: discord.Member):
+async def resultado(ctx):
+    global active_matches
+
+    if not active_matches:
+        return await ctx.send("❌ Nenhuma partida ativa.")
+
+    match_id, players = active_matches.popitem()
+
+    winner = random.choice(players)
+
     data = load_data()
 
-    player = get_player(data, member.id)
-    player["trofeus"] -= quantidade
+    logs_players = []
 
-    if player["trofeus"] < 0:
-        player["trofeus"] = 0
+    for p in players:
+        player = get_player(data, p)
 
-    player["rank"] = get_rank(player["trofeus"])
-    player["league"] = get_league(player["trofeus"])
+        if p == winner:
+            player["trofeus"] += 50
+        else:
+            player["trofeus"] -= 25
+            if player["trofeus"] < 0:
+                player["trofeus"] = 0
+
+        player["medalhas"] = 1 if player["trofeus"] >= 5000 else player["medalhas"]
+
+        logs_players.append(p)
 
     save_data(data)
 
-    await ctx.send(
-        f"📉 {member.mention} perdeu **{quantidade}** troféus!\n"
-        f"📊 {player['rank']} | {player['league']}"
-    )
+    add_match_log(match_id, "L1", logs_players, winner)
 
+    await ctx.send(f"🏁 Match finalizada! Winner: <@{winner}>")
 
-# ================= INFO =================
+# ================= LEADERBOARD =================
 
 @bot.command()
-async def ranked(ctx):
-    await ctx.send("""
-💬 Bem-vindo ao ranked!
+async def leaderboard(ctx):
+    data = load_data()
 
-🏆 Sistema composto por ranks, ligas e troféus.
+    sorted_players = sorted(
+        data.items(),
+        key=lambda x: x[1]["trofeus"],
+        reverse=True
+    )[:15]
 
-🪙 League 1 → R1 a R5 (0–999)
-💎 League 2 → R6 a R9 (1000–2999)
-👑 League 3 → R10 a R12 (3000–4999)
+    users = []
 
-🎖️ 5000+ = Medalhas infinitas
+    for user_id, p in sorted_players:
+        user = await bot.fetch_user(int(user_id))
+        users.append((user, p))
 
-⚔️ Matchmaking baseado em leagues
-⏳ Season de 2 meses
-🏁 Reset parcial ao final da season
-""")
+    image = create_leaderboard_image(users)
+
+    await ctx.send(file=discord.File(image, "leaderboard.png"))
 
 # ================= RUN =================
 
