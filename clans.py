@@ -597,4 +597,7 @@ def setup_clans(bot):
 
         save(CLAN_FILE, clans)
 
-    inactivity_check.start()
+    @bot.event
+async def on_ready():
+    if not inactivity_check.is_running():
+        inactivity_check.start()
