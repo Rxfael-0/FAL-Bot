@@ -589,15 +589,20 @@ def setup_clans(bot):
 
         for nome, c in clans.items():
 
-            last = datetime.fromisoformat(c["last_activity"])
+            try:
 
-            if now - last > timedelta(days=30):
+                last = datetime.fromisoformat(
+                    c["last_activity"]
+                )
 
-                c["status"] = "💤 Inativo"
+                if now - last > timedelta(days=30):
+
+                    c["status"] = "💤 Inativo"
+
+            except:
+                pass
 
         save(CLAN_FILE, clans)
 
-        @bot.event
-    async def on_ready():
-        if not inactivity_check.is_running():
-            inactivity_check.start()
+    inactivity_check.start()
+    
