@@ -38,8 +38,3 @@ setup_clans(bot)
 bot.run(
     os.getenv("TOKEN")
 )
-
-@bot.event
-async def on_message(message):
-    print("MSG RECEBIDA:", message.content)
-    await bot.process_commands(message)
