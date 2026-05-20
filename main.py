@@ -2,11 +2,12 @@ import discord
 from discord.ext import commands
 import os
 
-from bot.ranked import setup_ranked
-from bot.hall import setup_hall
-from bot.shop import setup_shop
-from bot.economy import setup_economy
-from bot.queue import setup_queue
+from ranked import setup_ranked
+from hall import setup_hall
+from shop import setup_shop
+from economy import setup_economy
+from queue import setup_queue
+from clans import setup_clans
 
 intents = discord.Intents.default()
 
