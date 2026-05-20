@@ -33,6 +33,7 @@ setup_hall(bot)
 setup_shop(bot)
 setup_economy(bot)
 setup_queue(bot)
+setup_clans(bot)
 
 bot.run(
     os.getenv("TOKEN")
