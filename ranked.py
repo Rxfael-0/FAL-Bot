@@ -1,85 +1,51 @@
 import discord
 from discord.ext import commands
+from discord.ui import View, button
+from datetime import datetime, timedelta
+from PIL import Image, ImageDraw, ImageFont
 import json
-from datetime import datetime
+import asyncio
+
+# =========================
+# DATABASES
+# =========================
 
 PLAYERS = "database/players.json"
 MATCHES = "database/matches.json"
-HALL = "database/hall.json"
+
+# =========================
+# CANAIS
+# =========================
+
+HALL_CHANNEL = 1461218594615459979
+TOP15_CHANNEL = 1462527038668673044
+
+RANKED_L1 = 1460670873328550125
+RANKED_L2 = 1460671197929935006
+RANKED_L3 = 1460671365223940156
+
+LOGS = 1506467756554584114
+
+AMISTOSO_CHANNEL = 1468742231912480798
+
+# =========================
+# CARGOS
+# =========================
 
 RANKS = {
 
-    "R1": {
-        "min": 0,
-        "max": 99,
-        "role": 1460459242413752381
-    },
-
-    "R2": {
-        "min": 100,
-        "max": 299,
-        "role": 1460460021564440666
-    },
-
-    "R3": {
-        "min": 300,
-        "max": 499,
-        "role": 1460460328948338852
-    },
-
-    "R4": {
-        "min": 500,
-        "max": 699,
-        "role": 1460460452810330249
-    },
-
-    "R5": {
-        "min": 700,
-        "max": 999,
-        "role": 1460460767290724384
-    },
-
-    "R6": {
-        "min": 1000,
-        "max": 1399,
-        "role": 1460510486075543685
-    },
-
-    "R7": {
-        "min": 1400,
-        "max": 1899,
-        "role": 1460510898174300301
-    },
-
-    "R8": {
-        "min": 1900,
-        "max": 2399,
-        "role": 1460511507124060212
-    },
-
-    "R9": {
-        "min": 2400,
-        "max": 2999,
-        "role": 1460511975007326280
-    },
-
-    "R10": {
-        "min": 3000,
-        "max": 3699,
-        "role": 1460513229997609024
-    },
-
-    "R11": {
-        "min": 3700,
-        "max": 4399,
-        "role": 1460514685110718466
-    },
-
-    "R12": {
-        "min": 4400,
-        "max": 4999,
-        "role": 1460515368069234729
-    }
+    "R1": 1460459242413752381,
+    "R2": 1460460021564440666,
+    "R3": 1460460328948338852,
+    "R4": 1460460452810330249,
+    "R5": 1460460767290724384,
+    "R6": 1460510486075543685,
+    "R7": 1460510898174300301,
+    "R8": 1460511507124060212,
+    "R9": 1460511975007326280,
+    "R10": 1460513229997609024,
+    "R11": 1460514685110718466,
+    "R12": 1460515368069234729
 }
 
 LEAGUES = {
@@ -94,7 +60,11 @@ BOOST_ROLE = 1499608761592053840
 CURSE_ROLE = 1499609510623580190
 SEASON_ROLE = 1499609960869400636
 
-MEGAVIP = 1460867926948057202
+WINNER_ROLE = None
+
+# =========================
+# JSON
+# =========================
 
 def load_players():
 
@@ -116,94 +86,134 @@ def save_matches(data):
     with open(MATCHES, "w") as f:
         json.dump(data, f, indent=4)
 
-def load_hall():
+# =========================
+# PLAYER
+# =========================
 
-    with open(HALL, "r") as f:
-        return json.load(f)
+def create_player(players, user_id):
 
-def create_player(user):
+    if str(user_id) not in players:
 
-    players = load_players()
-
-    if user not in players:
-
-        players[user] = {
+        players[str(user_id)] = {
 
             "trofeus": 0,
             "medalhas": 0,
+            "coins": 0,
+
             "wins": 0,
             "losses": 0,
-            "coins": 0,
+
             "seasonwins": [],
             "medals": [],
-            "hall": []
+            "hall": [],
+            "partidas": []
         }
 
-        save_players(players)
+# =========================
+# RANK SYSTEM
+# =========================
 
-async def update_rank_roles(
-    guild,
-    member,
-    trofeus
-):
+def get_rank(t):
 
-    for rank in RANKS.values():
+    if t <= 99:
+        return "R1"
 
-        role = guild.get_role(
-            rank["role"]
-        )
+    elif t <= 299:
+        return "R2"
+
+    elif t <= 499:
+        return "R3"
+
+    elif t <= 699:
+        return "R4"
+
+    elif t <= 999:
+        return "R5"
+
+    elif t <= 1399:
+        return "R6"
+
+    elif t <= 1899:
+        return "R7"
+
+    elif t <= 2399:
+        return "R8"
+
+    elif t <= 2999:
+        return "R9"
+
+    elif t <= 3699:
+        return "R10"
+
+    elif t <= 4399:
+        return "R11"
+
+    return "R12"
+
+def get_league(t):
+
+    if t < 1000:
+        return "L1"
+
+    elif t < 3000:
+        return "L2"
+
+    return "L3"
+
+# =========================
+# UPDATE ROLES
+# =========================
+
+async def update_roles(member, trofeus):
+
+    guild = member.guild
+
+    rank = get_rank(trofeus)
+    league = get_league(trofeus)
+
+    for rid in RANKS.values():
+
+        role = guild.get_role(rid)
 
         if role in member.roles:
-
             await member.remove_roles(role)
 
-    for nome, rank in RANKS.items():
+    for lid in LEAGUES.values():
 
-        if (
-            trofeus >= rank["min"]
-            and
-            trofeus <= rank["max"]
-        ):
-
-            role = guild.get_role(
-                rank["role"]
-            )
-
-            await member.add_roles(role)
-
-    for role_id in LEAGUES.values():
-
-        role = guild.get_role(role_id)
+        role = guild.get_role(lid)
 
         if role in member.roles:
-
             await member.remove_roles(role)
 
-    if trofeus < 1000:
+    await member.add_roles(
+        guild.get_role(RANKS[rank])
+    )
 
-        await member.add_roles(
-            guild.get_role(
-                LEAGUES["L1"]
-            )
-        )
+    await member.add_roles(
+        guild.get_role(LEAGUES[league])
+    )
 
-    elif trofeus < 3000:
+# =========================
+# LOGS
+# =========================
 
-        await member.add_roles(
-            guild.get_role(
-                LEAGUES["L2"]
-            )
-        )
+async def send_log(guild, text):
 
-    else:
+    canal = guild.get_channel(LOGS)
 
-        await member.add_roles(
-            guild.get_role(
-                LEAGUES["L3"]
-            )
-        )
+    if canal:
+
+        await canal.send(text)
+
+# =========================
+# SETUP
+# =========================
 
 def setup_ranked(bot):
+
+    # =========================
+    # PERFIL
+    # =========================
 
     @bot.command()
     async def perfil(
@@ -212,36 +222,53 @@ def setup_ranked(bot):
     ):
 
         if member is None:
-
             member = ctx.author
 
         players = load_players()
-        hall = load_hall()
 
-        user = str(member.id)
+        create_player(
+            players,
+            member.id
+        )
 
-        create_player(user)
+        save_players(players)
 
-        players = load_players()
+        p = players[str(member.id)]
 
-        data = players[user]
+        rank = get_rank(
+            p["trofeus"]
+        )
 
-        trofeus = data["trofeus"]
+        league = get_league(
+            p["trofeus"]
+        )
 
-        rank_name = "Unranked"
+        medals = ""
 
-        for nome, rank in RANKS.items():
+        for medal in p["medals"]:
 
-            if (
-                trofeus >= rank["min"]
-                and
-                trofeus <= rank["max"]
-            ):
+            medals += f"{medal} "
 
-                rank_name = nome
+        if medals == "":
+            medals = "Nenhuma."
+
+        hall = ""
+
+        for item in p["hall"][-5:]:
+
+            hall += (
+                f"🏆 {item['data']} ┊ "
+                f"{item['feito']}\n"
+            )
+
+        if hall == "":
+            hall = (
+                "❌ Nenhum desempenho "
+                "registrado."
+            )
 
         embed = discord.Embed(
-            title=f"🏆 Perfil • {member.name}",
+            title=f"🏆 Perfil de {member.name}",
             color=discord.Color.red()
         )
 
@@ -251,30 +278,28 @@ def setup_ranked(bot):
 
         embed.add_field(
             name="🏅 Rank",
-            value=rank_name
+            value=f"{rank}"
         )
 
         embed.add_field(
             name="🏆 Troféus",
-            value=data["trofeus"]
+            value=f"{p['trofeus']}"
         )
 
         embed.add_field(
             name="🎖 Medalhas",
-            value=data["medalhas"]
+            value=f"{p['medalhas']}"
+        )
+
+        embed.add_field(
+            name="🛡 League",
+            value=league
         )
 
         embed.add_field(
             name="🪙 Coins",
-            value=data["coins"]
+            value=p["coins"]
         )
-
-        medals = " ".join(
-            data["medals"]
-        )
-
-        if medals == "":
-            medals = "Nenhuma"
 
         embed.add_field(
             name="🏅 Coleção",
@@ -282,35 +307,17 @@ def setup_ranked(bot):
             inline=False
         )
 
-        feitos = ""
-
-        if user in hall:
-
-            for item in hall[user]:
-
-                feitos += (
-                    f"🏆 {item['data']} "
-                    f"┊ {item['feito']}\n"
-                )
-
-        if feitos == "":
-
-            feitos = (
-                "❌ Nenhum desempenho "
-                "registrado."
-            )
-
         embed.add_field(
-            name="🏁 Hall da Fama",
-            value=feitos,
+            name="🏁 Hall da fama",
+            value=hall,
             inline=False
         )
 
-        embed.set_footer(
-            text="🏆 Sistema Competitivo"
-        )
-
         await ctx.send(embed=embed)
+
+    # =========================
+    # ADD TROFÉU
+    # =========================
 
     @bot.command()
     @commands.has_permissions(
@@ -323,63 +330,77 @@ def setup_ranked(bot):
     ):
 
         players = load_players()
+        matches = load_matches()
+
+        create_player(
+            players,
+            member.id
+        )
 
         user = str(member.id)
 
-        create_player(user)
-
-        players = load_players()
-
-        ganho = quantidade
-
-        if discord.utils.get(
-            member.roles,
-            id=MEGAVIP
-        ):
-
-            ganho = int(
-                ganho * 1.05
-            )
+        ganhou = quantidade
 
         if discord.utils.get(
             member.roles,
             id=BOOST_ROLE
         ):
 
-            ganho *= 2
+            ganhou *= 2
 
         players[user][
             "trofeus"
-        ] += ganho
+        ] += ganhou
 
-        if (
-            players[user]["trofeus"]
-            >= 5000
-        ):
+        if players[user][
+            "trofeus"
+        ] >= 5000:
 
             players[user][
                 "medalhas"
             ] += 1
 
+        players[user][
+            "partidas"
+        ].append({
+
+            "resultado": f"+{ganhou}🏆",
+            "data": datetime.now().strftime(
+                "%d/%m/%Y"
+            ),
+            "staff": ctx.author.name
+        })
+
         save_players(players)
 
-        await update_rank_roles(
-            ctx.guild,
+        await update_roles(
             member,
             players[user]["trofeus"]
         )
 
         embed = discord.Embed(
             title="🏆 TROFÉUS ADICIONADOS",
+            description=(
+                f"{member.mention} "
+                f"ganhou +{ganhou}🏆"
+            ),
             color=discord.Color.green()
         )
 
-        embed.description = (
-            f"{member.mention} "
-            f"recebeu +{ganho}🏆"
+        await ctx.send(embed=embed)
+
+        await send_log(
+            ctx.guild,
+            (
+                f"➕ {ctx.author} adicionou "
+                f"{ganhou}🏆 para "
+                f"{member}"
+            )
         )
 
-        await ctx.send(embed=embed)
+    # =========================
+    # REMOVE TROFÉU
+    # =========================
 
     @bot.command()
     @commands.has_permissions(
@@ -393,11 +414,12 @@ def setup_ranked(bot):
 
         players = load_players()
 
+        create_player(
+            players,
+            member.id
+        )
+
         user = str(member.id)
-
-        create_player(user)
-
-        players = load_players()
 
         perda = quantidade
 
@@ -410,12 +432,6 @@ def setup_ranked(bot):
                 "🛡 Proteção ativada."
             )
 
-            await member.remove_roles(
-                ctx.guild.get_role(
-                    PROTECTION_ROLE
-                )
-            )
-
             return
 
         if discord.utils.get(
@@ -423,78 +439,98 @@ def setup_ranked(bot):
             id=CURSE_ROLE
         ):
 
-            perda = int(
-                perda * 1.5
-            )
+            perda *= 2
 
         players[user][
             "trofeus"
         ] -= perda
 
-        if (
-            players[user]["trofeus"]
-            < 0
-        ):
+        players[user][
+            "partidas"
+        ].append({
 
-            players[user][
-                "trofeus"
-            ] = 0
+            "resultado": f"-{perda}🏆",
+            "data": datetime.now().strftime(
+                "%d/%m/%Y"
+            ),
+            "staff": ctx.author.name
+        })
 
         save_players(players)
 
-        await update_rank_roles(
-            ctx.guild,
+        await update_roles(
             member,
             players[user]["trofeus"]
         )
 
         embed = discord.Embed(
             title="❌ TROFÉUS REMOVIDOS",
+            description=(
+                f"{member.mention} "
+                f"perdeu -{perda}🏆"
+            ),
             color=discord.Color.red()
         )
 
-        embed.description = (
-            f"{member.mention} "
-            f"perdeu {perda}🏆"
+        await ctx.send(embed=embed)
+
+        await send_log(
+            ctx.guild,
+            (
+                f"➖ {ctx.author} removeu "
+                f"{perda}🏆 de "
+                f"{member}"
+            )
         )
 
-        await ctx.send(embed=embed)
+    # =========================
+    # PARTIDAS
+    # =========================
 
     @bot.command()
-    @commands.has_permissions(
-        administrator=True
-    )
-    async def add(
+    async def partidas(
         ctx,
-        emoji,
-        member: discord.Member
+        member: discord.Member=None
     ):
 
-        players = load_players()
-
-        user = str(member.id)
-
-        create_player(user)
+        if member is None:
+            member = ctx.author
 
         players = load_players()
 
-        players[user][
-            "medals"
-        ].append(emoji)
+        create_player(
+            players,
+            member.id
+        )
 
-        save_players(players)
+        partidas = players[
+            str(member.id)
+        ]["partidas"]
 
         embed = discord.Embed(
-            title="🏅 MEDALHA ADICIONADA",
-            color=discord.Color.gold()
+            title="📜 Histórico",
+            color=discord.Color.blurple()
         )
 
-        embed.description = (
-            f"{member.mention} "
-            f"recebeu {emoji}"
-        )
+        texto = ""
+
+        for p in partidas[-15:]:
+
+            texto += (
+                f"{p['resultado']} • "
+                f"{p['data']}\n"
+            )
+
+        if texto == "":
+            texto = "Nenhuma."
+
+        embed.description = texto
 
         await ctx.send(embed=embed)
+
+    # =========================
+    # TOP
+    # =========================
 
     @bot.command()
     async def top(ctx):
@@ -510,28 +546,455 @@ def setup_ranked(bot):
             reverse=True
         )
 
-        embed = discord.Embed(
-            title="🏆 TOP 3",
-            color=discord.Color.gold()
+        img = Image.new(
+            "RGB",
+            (900, 700),
+            color=(15,15,15)
         )
+
+        draw = ImageDraw.Draw(img)
+
+        titulo = ImageFont.truetype(
+            "arial.ttf",
+            40
+        )
+
+        fonte = ImageFont.truetype(
+            "arial.ttf",
+            28
+        )
+
+        draw.text(
+            (250,40),
+            "🏆 TOP RANKED",
+            font=titulo,
+            fill=(255,215,0)
+        )
+
+        y = 140
 
         pos = 1
 
-        for user, data in ranking[:3]:
+        for user, data in ranking[:10]:
 
             membro = await bot.fetch_user(
                 int(user)
             )
 
-            embed.add_field(
-                name=f"#{pos} {membro.name}",
-                value=(
-                    f"{data['trofeus']}🏆\n"
-                    f"{data['medalhas']}🎖"
-                ),
-                inline=False
+            texto = (
+                f"#{pos} "
+                f"{membro.name} | "
+                f"{data['trofeus']}🏆 | "
+                f"{data['medalhas']}🎖"
             )
 
+            draw.text(
+                (70,y),
+                texto,
+                font=fonte,
+                fill=(255,255,255)
+            )
+
+            y += 50
             pos += 1
 
-        await ctx.send(embed=embed)
+        caminho = "leaderboard.png"
+
+        img.save(caminho)
+
+        await ctx.send(
+            file=discord.File(caminho)
+        )
+
+    # =========================
+    # MEDALHAS
+    # =========================
+
+    @bot.command()
+    @commands.has_permissions(
+        administrator=True
+    )
+    async def add(
+        ctx,
+        emoji,
+        member: discord.Member
+    ):
+
+        players = load_players()
+
+        create_player(
+            players,
+            member.id
+        )
+
+        players[
+            str(member.id)
+        ]["medals"].append(
+            emoji
+        )
+
+        save_players(players)
+
+        await ctx.send(
+            f"🏅 Medalha adicionada "
+            f"para {member.mention}"
+        )
+
+    # =========================
+    # AMISTOSO
+    # =========================
+
+    amistoso_cooldowns = {}
+    amistoso_accept = {}
+
+    class ResultadoView(View):
+
+        def __init__(
+            self,
+            desafiante,
+            desafiado,
+            valor
+        ):
+
+            super().__init__(timeout=None)
+
+            self.desafiante = desafiante
+            self.desafiado = desafiado
+            self.valor = valor
+
+            self.votos = {}
+
+        async def verificar(
+            self,
+            interaction
+        ):
+
+            if len(self.votos) < 2:
+                return
+
+            votos = list(
+                self.votos.values()
+            )
+
+            if votos[0] != votos[1]:
+
+                return await interaction.channel.send(
+                    "❌ Resultados diferentes."
+                )
+
+            vencedor = None
+            perdedor = None
+
+            if votos[0] == "desafiante":
+
+                vencedor = self.desafiante
+                perdedor = self.desafiado
+
+            else:
+
+                vencedor = self.desafiado
+                perdedor = self.desafiante
+
+            players = load_players()
+
+            players[
+                str(vencedor.id)
+            ]["trofeus"] += self.valor
+
+            players[
+                str(perdedor.id)
+            ]["trofeus"] -= self.valor
+
+            save_players(players)
+
+            await update_roles(
+                vencedor,
+                players[
+                    str(vencedor.id)
+                ]["trofeus"]
+            )
+
+            await update_roles(
+                perdedor,
+                players[
+                    str(perdedor.id)
+                ]["trofeus"]
+            )
+
+            embed = discord.Embed(
+                title="🏆 AMISTOSO FINALIZADO",
+                description=(
+                    f"{vencedor.mention} "
+                    f"ganhou +{self.valor}🏆\n\n"
+                    f"{perdedor.mention} "
+                    f"perdeu -{self.valor}🏆"
+                ),
+                color=discord.Color.green()
+            )
+
+            msg = await interaction.channel.send(
+                embed=embed
+            )
+
+            await asyncio.sleep(86400)
+
+            try:
+                await msg.delete()
+            except:
+                pass
+
+        @button(
+            label="2x0 desafiante",
+            style=discord.ButtonStyle.green
+        )
+        async def r1(
+            self,
+            interaction,
+            button
+        ):
+
+            self.votos[
+                interaction.user.id
+            ] = "desafiante"
+
+            await interaction.response.send_message(
+                "✅ Resultado enviado.",
+                ephemeral=True
+            )
+
+            await self.verificar(
+                interaction
+            )
+
+        @button(
+            label="2x1 desafiante",
+            style=discord.ButtonStyle.green
+        )
+        async def r2(
+            self,
+            interaction,
+            button
+        ):
+
+            self.votos[
+                interaction.user.id
+            ] = "desafiante"
+
+            await interaction.response.send_message(
+                "✅ Resultado enviado.",
+                ephemeral=True
+            )
+
+            await self.verificar(
+                interaction
+            )
+
+        @button(
+            label="2x0 desafiado",
+            style=discord.ButtonStyle.red
+        )
+        async def r3(
+            self,
+            interaction,
+            button
+        ):
+
+            self.votos[
+                interaction.user.id
+            ] = "desafiado"
+
+            await interaction.response.send_message(
+                "✅ Resultado enviado.",
+                ephemeral=True
+            )
+
+            await self.verificar(
+                interaction
+            )
+
+        @button(
+            label="2x1 desafiado",
+            style=discord.ButtonStyle.red
+        )
+        async def r4(
+            self,
+            interaction,
+            button
+        ):
+
+            self.votos[
+                interaction.user.id
+            ] = "desafiado"
+
+            await interaction.response.send_message(
+                "✅ Resultado enviado.",
+                ephemeral=True
+            )
+
+            await self.verificar(
+                interaction
+            )
+
+    class AceitarView(View):
+
+        def __init__(
+            self,
+            desafiante,
+            desafiado,
+            valor
+        ):
+
+            super().__init__(timeout=None)
+
+            self.desafiante = desafiante
+            self.desafiado = desafiado
+            self.valor = valor
+
+        @button(
+            label="Aceitar",
+            style=discord.ButtonStyle.green
+        )
+        async def aceitar(
+            self,
+            interaction,
+            button
+        ):
+
+            if interaction.user != self.desafiado:
+                return
+
+            embed = discord.Embed(
+                title="⚔️ AMISTOSO",
+                description=(
+                    f"{self.desafiante.mention} "
+                    f"🆚 "
+                    f"{self.desafiado.mention}"
+                ),
+                color=discord.Color.orange()
+            )
+
+            embed.add_field(
+                name="🏆 Valor",
+                value=f"{self.valor}🏆"
+            )
+
+            await interaction.response.edit_message(
+                embed=embed,
+                view=ResultadoView(
+                    self.desafiante,
+                    self.desafiado,
+                    self.valor
+                )
+            )
+
+        @button(
+            label="Desistir",
+            style=discord.ButtonStyle.red
+        )
+        async def desistir(
+            self,
+            interaction,
+            button
+        ):
+
+            if interaction.user != self.desafiado:
+                return
+
+            await interaction.response.edit_message(
+                content="❌ Amistoso recusado.",
+                embed=None,
+                view=None
+            )
+
+    class DesafioView(View):
+
+        def __init__(self):
+
+            super().__init__(timeout=None)
+
+        @button(
+            label="Desafiar",
+            style=discord.ButtonStyle.blurple
+        )
+        async def desafiar(
+            self,
+            interaction,
+            button
+        ):
+
+            class Modal(
+                discord.ui.Modal,
+                title="⚔️ Desafio"
+            ):
+
+                player = discord.ui.TextInput(
+                    label="ID do player"
+                )
+
+                valor = discord.ui.TextInput(
+                    label="Valor 10-100"
+                )
+
+                async def on_submit(
+                    self,
+                    interaction2
+                ):
+
+                    membro = interaction.guild.get_member(
+                        int(self.player.value)
+                    )
+
+                    valor = int(
+                        self.valor.value
+                    )
+
+                    embed = discord.Embed(
+                        title="⚔️ PROPOSTA",
+                        description=(
+                            f"{interaction.user.mention} "
+                            f"desafiou "
+                            f"{membro.mention}"
+                        ),
+                        color=discord.Color.red()
+                    )
+
+                    embed.add_field(
+                        name="🏆 Valor",
+                        value=f"{valor}🏆"
+                    )
+
+                    await interaction2.response.send_message(
+                        embed=embed,
+                        view=AceitarView(
+                            interaction.user,
+                            membro,
+                            valor
+                        )
+                    )
+
+            await interaction.response.send_modal(
+                Modal()
+            )
+
+    @bot.command()
+    async def amistoso(ctx):
+
+        if ctx.channel.id != AMISTOSO_CHANNEL:
+
+            return await ctx.send(
+                "❌ Canal incorreto."
+            )
+
+        embed = discord.Embed(
+            title="⚔️ SISTEMA AMISTOSO",
+            description=(
+                "Clique abaixo "
+                "para desafiar."
+            ),
+            color=discord.Color.blurple()
+        )
+
+        await ctx.send(
+            embed=embed,
+            view=DesafioView()
+)
