@@ -6,7 +6,7 @@ from ranked import setup_ranked
 from hall import setup_hall
 from shop import setup_shop
 from economy import setup_economy
-from queue import setup_queue
+from queue_system import setup_queue
 from clans import setup_clans
 
 intents = discord.Intents.default()
