@@ -566,6 +566,10 @@ def setup_clans(bot):
 
         overwrites = {
 
+            categoria = ctx.guild.get_channel(
+            1504652700921626716
+        ).category
+
             ctx.guild.default_role:
             discord.PermissionOverwrite(
                 read_messages=False
@@ -578,8 +582,9 @@ def setup_clans(bot):
         }
 
         canal = await ctx.guild.create_text_channel(
-            f"🏰-{nome}",
-            overwrites=overwrites
+            name=f"🏰・{nome.lower()}",
+    category=categoria,
+    overwrites=overwrites
         )
 
         data[nome] = {
@@ -637,6 +642,56 @@ def setup_clans(bot):
 
         await ctx.send(
             f"✅ Clã {nome} criado."
+        )
+
+    @bot.command()
+    async def deletarcla(ctx):
+
+        data = load_clans()
+
+        autor_id = str(ctx.author.id)
+
+        clan_nome = None
+
+        for nome, clan in data.items():
+
+            if clan["leader"] == autor_id:
+
+                clan_nome = nome
+                break
+
+        if not clan_nome:
+
+            return await ctx.send(
+                "❌ Você não é líder de nenhum clã."
+            )
+
+        guild = ctx.guild
+
+        cargo = discord.utils.get(
+            guild.roles,
+            name=clan_nome
+        )
+
+        canal = discord.utils.get(
+            guild.channels,
+            name=f"🏰・{clan_nome.lower()}"
+        )
+
+        if canal:
+
+            await canal.delete()
+
+        if cargo:
+
+            await cargo.delete()
+
+        del data[clan_nome]
+
+        save_clans(data)
+
+        await ctx.send(
+            f"🗑️ Clã {clan_nome} deletado."
         )
 
     # =========================
