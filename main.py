@@ -15,7 +15,6 @@ intents.message_content = True
 intents.members = True
 
 bot = commands.Bot(
-
     command_prefix="!",
     intents=intents
 )
@@ -23,10 +22,14 @@ bot = commands.Bot(
 @bot.event
 async def on_ready():
 
-    print(
-        f"🔥 Bot ligado como "
-        f"{bot.user}"
-    )
+    print(f"🔥 Bot ligado como {bot.user}")
+
+@bot.event
+async def on_message(message):
+
+    print("MSG:", message.content)
+
+    await bot.process_commands(message)
 
 setup_ranked(bot)
 setup_hall(bot)
@@ -35,11 +38,4 @@ setup_economy(bot)
 setup_queue(bot)
 setup_clans(bot)
 
-bot.run(
-    os.getenv("TOKEN")
-)
-
-@bot.event
-async def on_message(message):
-    print("MSG:", message.content)
-    await bot.process_commands(message)
+bot.run(os.getenv("TOKEN"))
