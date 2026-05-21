@@ -815,8 +815,8 @@ def setup_clans(bot):
     # INATIVIDADE
     # =========================
 
-    @tasks.loop(hours=24)
-    async def check_inactive():
+@tasks.loop(hours=24)
+async def check_inactive():
 
         data = load_clans()
 
