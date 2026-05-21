@@ -582,11 +582,11 @@ def setup_clans(bot):
             1504652700921626716
         ).category
 
-        await ctx.guild.create_text_channel(
+        canal = await ctx.guild.create_text_channel(
 
-            name=f"🏰・{nome.lower()}",
-            category=categoria,
-            overwrites=overwrites
+    name=f"🏰・{nome.lower()}",
+    category=categoria,
+    overwrites=overwrites
         )
 
         data[nome] = {
