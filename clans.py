@@ -844,4 +844,4 @@ def setup_clans(bot):
                     f"foi arquivado."
                 )
 
-    check_inactive.start()
+    
