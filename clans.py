@@ -36,12 +36,12 @@ def save_clans(data):
 
 def load_wars():
 
-    def  open ( WARS_FILE, "r" )  as f:
+    with  open ( WARS_FILE, "r" )  as f:
         retornar json. carregar ( f )
 
 def  salvar_guerras ( dados ) :
 
-    def  open ( WARS_FILE, "w" )  as f:
+    with  open ( WARS_FILE, "w" )  as f:
         json.dump ( data, f , indent= 4 )
 
 # =========================
