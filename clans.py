@@ -554,12 +554,13 @@ def setup_clans(bot):
 
         data = load_clans()
 
-        if nome in data:
+        for clan_nome in data:
 
-            return await ctx.send(
-                "❌ Clã já existe."
-            )
+    if clan_nome.lower() == nome.lower():
 
+        return await ctx.send(
+            "❌ Clã já existe."
+        )
         role = await ctx.guild.create_role(
             name=nome
         )
@@ -591,7 +592,7 @@ canal = await categoria.create_text_channel(
 
         data[nome] = {
 
-            "leader": ctx.author.id,
+            "leader": str(ctx.author.id),
             "coleader": None,
             "members": [str(ctx.author.id)],
             "wins": 0,
