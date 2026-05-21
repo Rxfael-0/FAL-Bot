@@ -579,7 +579,7 @@ def setup_clans(bot):
         }
 
         categoria = ctx.guild.get_channel(
-            1504652700921626716
+            1504651417229463613
         ).category
 
         canal = await ctx.guild.create_text_channel(
