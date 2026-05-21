@@ -578,16 +578,16 @@ def setup_clans(bot):
             )
         }
 
-        categoria = ctx.guild.get_channel(
-            1504651417229463613
-        ).category
+        categoria = discord.utils.get(
+    ctx.guild.categories,
+    id=1504651417229463613
+)
 
-        canal = await ctx.guild.create_text_channel(
+canal = await categoria.create_text_channel(
 
     name=f"🏰・{nome.lower()}",
-    category=categoria,
     overwrites=overwrites
-        )
+)
 
         data[nome] = {
 
