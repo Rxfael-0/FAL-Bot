@@ -7,7 +7,7 @@ from hall import setup_hall
 from shop import setup_shop
 from economy import setup_economy
 from queue_system import setup_queue
-from clans import setup_clans
+from clans import setup_clans, check_inactive
 
 intents = discord.Intents.default()
 
@@ -23,6 +23,10 @@ bot = commands.Bot(
 async def on_ready():
 
     print(f"🔥 Bot ligado como {bot.user}")
+
+    if not check_inactive.is_running():
+
+        check_inactive.start()
 
 @bot.event
 async def on_message(message):
