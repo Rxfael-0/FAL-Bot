@@ -48,7 +48,7 @@ def  salvar_guerras ( dados ) :
 # CLÃ INCORPORADO
 # =========================
 
-async  def  update_clan_panel ( bot, guild, clan_name):):
+async def update_clan_panel(bot, guild, clan_name):
 
     dados = carregar_clãs()load_clans()
 
