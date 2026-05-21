@@ -566,10 +566,6 @@ def setup_clans(bot):
 
         overwrites = {
 
-            categoria = ctx.guild.get_channel(
-            1504652700921626716
-        ).category
-
             ctx.guild.default_role:
             discord.PermissionOverwrite(
                 read_messages=False
@@ -577,14 +573,20 @@ def setup_clans(bot):
 
             role:
             discord.PermissionOverwrite(
-                read_messages=True
+                read_messages=True,
+                send_messages=True
             )
         }
 
-        canal = await ctx.guild.create_text_channel(
+        categoria = ctx.guild.get_channel(
+            1504652700921626716
+        ).category
+
+        await ctx.guild.create_text_channel(
+
             name=f"🏰・{nome.lower()}",
-    category=categoria,
-    overwrites=overwrites
+            category=categoria,
+            overwrites=overwrites
         )
 
         data[nome] = {
