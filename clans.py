@@ -36,13 +36,13 @@ def save_clans(data):
 
 def load_wars():
 
-    with  open ( WARS_FILE, "r" )  as f:
-        return json. carregar ( f )
+    with open(WARS_FILE, "r") as f:
+        return json.load(f)
 
-def  salvar_guerras ( dados ) :
+def save_wars(data):
 
-    with  open ( WARS_FILE, "w" )  as f:
-        json.dump ( data, f , indent= 4 )
+    with open(WARS_FILE, "w") as f:
+        json.dump(data, f, indent=4)
 
 # =========================
 # CLÃ INCORPORADO
@@ -50,15 +50,15 @@ def  salvar_guerras ( dados ) :
 
 async def update_clan_panel(bot, guild, clan_name):
 
-    dados = carregar_clãs()load_clans()
+    data = load_clans()
 
-    clã = dados[nome_do_clã][clan_name]
+    clan = data[clan_name]
 
-    canal = guild.get_channel(get_channel(
-        clã["canal_do_painel"]["panel_channel"]
-    ))
+    channel = guild.get_channel(
+        clan["panel_channel"]
+    )
 
-    tentar:try:
+    try:
 
         mensagem = await canal.fetch_message(
             clan["panel_message"]
@@ -588,15 +588,15 @@ def setup_clans(bot):
         }
 
         categoria = discord.utils.get(
-    ctx.guild.categories,
-    id=1504651417229463613
-)
+            ctx.guild.categories,
+            id=1504651417229463613
+        )
 
-canal = await categoria.create_text_channel(
+        canal = await categoria.create_text_channel(
 
-    name=f"🏰・{nome.lower()}",
-    overwrites=overwrites
-)
+            name=f"🏰・{nome.lower()}",
+            overwrites=overwrites
+        )
 
         data[nome] = {
 
