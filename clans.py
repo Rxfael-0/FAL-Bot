@@ -37,7 +37,7 @@ def save_clans(data):
 def load_wars():
 
     with  open ( WARS_FILE, "r" )  as f:
-        retornar json. carregar ( f )
+        return json. carregar ( f )
 
 def  salvar_guerras ( dados ) :
 
