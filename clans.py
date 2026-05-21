@@ -36,29 +36,29 @@ def save_clans(data):
 
 def load_wars():
 
-    with open(WARS_FILE, "r") as f:
-        return json.load(f)
+    com  open ( WARS_FILE, "r" )  as f:
+        retornar json. carregar ( f )
 
-def save_wars(data):
+def  salvar_guerras ( dados ) :
 
-    with open(WARS_FILE, "w") as f:
-        json.dump(data, f, indent=4)
+    com  open ( WARS_FILE, "w" )  as f:
+        json.dump ( data, f , indent= 4 )
 
 # =========================
-# CLAN EMBED
+# CLÃ INCORPORADO
 # =========================
 
-async def update_clan_panel(bot, guild, clan_name):
+async  def  update_clan_panel ( bot, guild, clan_name):):
 
-    data = load_clans()
+    dados = carregar_clãs()load_clans()
 
-    clan = data[clan_name]
+    clã = dados[nome_do_clã][clan_name]
 
-    canal = guild.get_channel(
-        clan["panel_channel"]
-    )
+    canal = guild.get_channel(get_channel(
+        clã["canal_do_painel"]["panel_channel"]
+    ))
 
-    try:
+    tentar:try:
 
         mensagem = await canal.fetch_message(
             clan["panel_message"]
@@ -556,11 +556,19 @@ def setup_clans(bot):
 
         for clan_nome in data:
 
-    if clan_nome.lower() == nome.lower():
+            if clan_nome.lower() == nome.lower():
 
-        return await ctx.send(
-            "❌ Clã já existe."
-        )
+                return await ctx.send(
+                    "❌ Clã já existe."
+                )
+
+        for clan in data.values():
+
+            if str(ctx.author.id) in clan["members"]:
+
+                return await ctx.send(
+                    "❌ Você já está em um clã."
+                )
         role = await ctx.guild.create_role(
             name=nome
         )
