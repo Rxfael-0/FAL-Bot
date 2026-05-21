@@ -666,7 +666,7 @@ def setup_clans(bot):
 
         for nome, clan in data.items():
 
-            if clan["leader"] == autor_id:
+            if clan["leader"] == str(ctx.author.id):
 
                 clan_nome = nome
                 break
