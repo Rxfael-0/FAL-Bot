@@ -946,9 +946,7 @@ async def check_inactive():
     for nome, clan in data.items():
 
         ultima = datetime.strptime(
-
             clan["last_activity"],
-
             "%d/%m/%Y"
         )
 
@@ -959,13 +957,3 @@ async def check_inactive():
             clan["status"] = "💤 Inativo"
 
             save_clans(data)
-
-            canal = bot.get_channel(
-                INACTIVE_CHANNEL
-            )
-
-            if canal:
-
-                await canal.send(
-                    f"📦 Clã {nome} foi arquivado."
-                )
