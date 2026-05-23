@@ -4,7 +4,7 @@ import os
 
 from ranked import setup_ranked
 from hall import setup_hall
-from shop import setup_shop
+from shop import setup_shop, reset_shop_limits
 from economy import setup_economy
 from queue_system import setup_queue
 from clans import setup_clans, check_inactive
@@ -26,11 +26,16 @@ async def on_ready():
     print(f"🔥 Bot ligado como {bot.user}")
 
     if not check_inactive.is_running():
-
         check_inactive.start()
+
+    if not reset_shop_limits.is_running():
+        reset_shop_limits.start()
 
 @bot.event
 async def on_message(message):
+
+    if message.author.bot:
+        return
 
     print("MSG:", message.content)
 
