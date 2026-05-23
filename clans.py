@@ -822,13 +822,17 @@ def setup_clans(bot):
 
         await canal.send(
 
-            embed=embed,
+    content=(
+        f"<@&{data[clan_name]['role_id']}>"
+    ),
 
-            view=RequestView(
-                clan_name,
-                ctx.author.id
-            )
-        )
+    embed=embed,
+
+    view=WarView(
+        meu_cla,
+        clan_name
+    )
+                )
 
         await ctx.send(
             "✅ Solicitação enviada."
