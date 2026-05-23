@@ -632,10 +632,13 @@ def setup_clans(bot):
             id=CLAN_CATEGORY
         )
 
-        canal = await categoria.create_text_channel(
+        canal = await ctx.guild.create_text_channel(
 
-            name=f"🏰・{nome.lower()}",
-            overwrites=overwrites
+    name=f"🏰・{nome.lower()}",
+
+    category=categoria,
+
+    overwrites=overwrites
         )
 
         data[nome] = {
