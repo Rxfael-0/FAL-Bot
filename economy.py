@@ -174,3 +174,35 @@ def setup_economy(bot):
         await ctx.send(
             "✅ Coins mensais entregues."
       )
+
+@tasks.loop(hours=720)
+async def mensal_auto(bot):
+
+    guild = bot.guilds[0]
+
+    data = load_players()
+
+    for member in guild.members:
+
+        create_player(
+            data,
+            member.id
+        )
+
+        if discord.utils.get(
+            member.roles,
+            id=MEGAVIP
+        ):
+
+            data[str(member.id)]["coins"] += 20
+
+        elif discord.utils.get(
+            member.roles,
+            id=VIP
+        ):
+
+            data[str(member.id)]["coins"] += 4
+
+    save_players(data)
+
+    print("💎 Coins mensais entregues.")
