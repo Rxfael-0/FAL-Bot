@@ -81,16 +81,29 @@ def setup_shop(bot):
 
         embed.description = (
 
-            "🛡 Proteção troféus ➜ 3🪙\n"
-            "🧪 Boost x2 ➜ 4🪙\n"
-            "💊 Maldição sombria ➜ 2🪙\n"
-            "🧫 Proteção season ➜ 7🪙\n\n"
+    "🛡 Proteção troféus ➜ 3🪙\n"
+    "Impede perda de troféus em derrota.\n\n"
 
-            "📌 Use:\n"
-            "!buy protection\n"
-            "!buy boost\n"
-            "!buy curse\n"
-            "!buy season"
+    "🧪 Boost x2 ➜ 4🪙\n"
+    "Dobra os troféus ganhos em vitórias.\n\n"
+
+    "💊 Maldição sombria ➜ 2🪙\n"
+    "Aumenta perda de troféus do adversário.\n\n"
+
+    "🧫 Proteção season ➜ 7🪙\n"
+    "Protege suas recompensas da season.\n\n"
+
+    f"<@&{VIP}> ➜ 4🪙 mensais\n"
+    "Benefícios exclusivos e vantagens.\n\n"
+
+    f"<@&{MEGAVIP}> ➜ 20🪙 mensais\n"
+    "Maior quantidade de moedas e perks.\n\n"
+
+    "📌 Use:\n"
+    "!buy protection\n"
+    "!buy boost\n"
+    "!buy curse\n"
+    "!buy season"
         )
 
         await ctx.send(embed=embed)
