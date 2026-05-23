@@ -831,9 +831,9 @@ def setup_clans(bot):
 
     embed=embed,
 
-    view=WarView(
-        meu_cla,
-        clan_name
+    view=RequestView(
+        clan_name,
+        ctx.author.id
     )
                 )
 
@@ -959,3 +959,13 @@ async def check_inactive():
             clan["status"] = "💤 Inativo"
 
             save_clans(data)
+
+            canal = bot.get_channel(
+                INACTIVE_CHANNEL
+            )
+
+            if canal:
+
+                await canal.send(
+                    f"📦 Clã {nome} foi arquivado."
+                )
