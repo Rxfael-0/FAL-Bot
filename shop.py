@@ -204,7 +204,7 @@ def setup_shop(bot):
         )
 
 @tasks.loop(hours=168)
-async def reset_shop_week():
+async def reset_shop_limits():
 
     data = load_players()
 
