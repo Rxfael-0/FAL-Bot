@@ -35,7 +35,8 @@ def create_player(data, uid):
             "seasonwins": [],
             "medals": [],
             "hall": [],
-            "partidas": []
+            "partidas": [],
+            "shop_week": 0
         }
 
 LOJA = {
@@ -56,14 +57,14 @@ LOJA = {
 
     "curse": {
 
-        "nome": "💊 Maldição sombria",
+        "nome": "💀 Maldição sombria",
         "preco": 2,
         "cargo": CURSE_ROLE
     },
 
     "season": {
 
-        "nome": "🧫 Proteção season",
+        "nome": "🧬 Proteção season",
         "preco": 7,
         "cargo": SEASON_ROLE
     }
@@ -81,29 +82,26 @@ def setup_shop(bot):
 
         embed.description = (
 
-    "🛡 Proteção troféus ➜ 3🪙\n"
-    "Impede perda de troféus em derrota.\n\n"
+            "🛡 **Proteção Troféus** — 3🪙\n"
+            "Impede perda de troféus em derrotas.\n\n"
 
-    "🧪 Boost x2 ➜ 4🪙\n"
-    "Dobra os troféus ganhos em vitórias.\n\n"
+            "🧪 **Boost x2** — 4🪙\n"
+            "Dobra os troféus recebidos.\n\n"
 
-    "💊 Maldição sombria ➜ 2🪙\n"
-    "Aumenta perda de troféus do adversário.\n\n"
+            "💀 **Maldição Sombria** — 2🪙\n"
+            "Aumenta a perda de troféus do adversário.\n\n"
 
-    "🧫 Proteção season ➜ 7🪙\n"
-    "Protege suas recompensas da season.\n\n"
+            "🧬 **Proteção Season** — 7🪙\n"
+            "Protege parte do progresso da season.\n\n"
 
-    f"<@&{VIP}> ➜ 4🪙 mensais\n"
-    "Benefícios exclusivos e vantagens.\n\n"
+            "📌 Limite semanal:\n"
+            "3 compras por semana.\n\n"
 
-    f"<@&{MEGAVIP}> ➜ 20🪙 mensais\n"
-    "Maior quantidade de moedas e perks.\n\n"
-
-    "📌 Use:\n"
-    "!buy protection\n"
-    "!buy boost\n"
-    "!buy curse\n"
-    "!buy season"
+            "📌 Use:\n"
+            "`!buy protection`\n"
+            "`!buy boost`\n"
+            "`!buy curse`\n"
+            "`!buy season`"
         )
 
         await ctx.send(embed=embed)
@@ -129,6 +127,24 @@ def setup_shop(bot):
             ctx.author.id
         )
 
+        if data[
+            str(ctx.author.id)
+        ]["shop_week"] >= 3:
+
+            return await ctx.send(
+                "❌ Você atingiu o limite semanal de compras. (3/3)"
+            )
+
+        cargo = ctx.guild.get_role(
+            LOJA[item]["cargo"]
+        )
+
+        if cargo in ctx.author.roles:
+
+            return await ctx.send(
+                "❌ Você já possui este item."
+            )
+
         preco = LOJA[item]["preco"]
 
         if data[
@@ -143,11 +159,11 @@ def setup_shop(bot):
             str(ctx.author.id)
         ]["coins"] -= preco
 
-        save_players(data)
+        data[
+            str(ctx.author.id)
+        ]["shop_week"] += 1
 
-        cargo = ctx.guild.get_role(
-            LOJA[item]["cargo"]
-        )
+        save_players(data)
 
         await ctx.author.add_roles(
             cargo
@@ -156,11 +172,33 @@ def setup_shop(bot):
         embed = discord.Embed(
             title="✅ Compra realizada",
             description=(
+
                 f"{ctx.author.mention} "
                 f"comprou "
-                f"{LOJA[item]['nome']}"
+                f"{LOJA[item]['nome']}\n\n"
+
+                f"🛒 Compras semanais: "
+                f"{data[str(ctx.author.id)]['shop_week']}/3"
             ),
             color=discord.Color.green()
         )
 
         await ctx.send(embed=embed)
+
+    @bot.command()
+    @commands.has_permissions(
+        administrator=True
+    )
+    async def resetshop(ctx):
+
+        data = load_players()
+
+        for player in data:
+
+            data[player]["shop_week"] = 0
+
+        save_players(data)
+
+        await ctx.send(
+            "✅ Limite semanal resetado."
+        )
