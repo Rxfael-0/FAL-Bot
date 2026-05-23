@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import json
 
 PLAYERS = "database/players.json"
@@ -202,3 +202,16 @@ def setup_shop(bot):
         await ctx.send(
             "✅ Limite semanal resetado."
         )
+
+@tasks.loop(hours=168)
+async def reset_shop_week():
+
+    data = load_players()
+
+    for player in data:
+
+        data[player]["shop_week"] = 0
+
+    save_players(data)
+
+    print("🛒 Loja semanal resetada.")
