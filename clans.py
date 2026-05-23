@@ -313,51 +313,22 @@ class WarView(View):
 
         data = load_clans()
 
-        clan = data[self.clan2]
-
-        if interaction.user.id not in [
-
-            int(clan["leader"]),
-
-            int(clan["coleader"])
-            if clan["coleader"]
-            else 0
-        ]:
-
-            return await interaction.response.send_message(
-
-                "❌ Apenas líder/co-líder.",
-
-                ephemeral=True
-            )
-
-        analista = interaction.guild.get_role(
-            ANALISTA
-        )
-
         embed = discord.Embed(
 
             title="⚔️ CLANWAR ACEITA",
 
             description=(
-                f"<@&{data[self.clan1]['role_id']}> "
-                f"🆚 "
-                f"<@&{data[self.clan2]['role_id']}>"
+                f"{self.clan1} 🆚 {self.clan2}"
             ),
 
             color=discord.Color.orange()
-        )
-
-        embed.add_field(
-            name="🎯 Analista",
-            value=analista.mention
         )
 
         await interaction.response.edit_message(
 
             embed=embed,
 
-            view=ResultadoView(
+            view=RegistrarResultadoView(
                 self.clan1,
                 self.clan2
             )
@@ -386,7 +357,39 @@ class WarView(View):
             content="❌ Clanwar recusada.",
 
             embed=None,
+
             view=None
+    )
+
+class RegistrarResultadoView(View):
+
+    def __init__(
+        self,
+        clan1,
+        clan2
+    ):
+
+        super().__init__(timeout=None)
+
+        self.clan1 = clan1
+        self.clan2 = clan2
+
+    @button(
+        label="Registrar Resultado",
+        style=discord.ButtonStyle.blurple
+    )
+    async def registrar(
+        self,
+        interaction,
+        button
+    ):
+
+        await interaction.response.edit_message(
+
+            view=ResultadoView(
+                self.clan1,
+                self.clan2
+            )
         )
 
 # =========================
