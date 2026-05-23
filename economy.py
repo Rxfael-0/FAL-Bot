@@ -109,18 +109,30 @@ def setup_economy(bot):
 
         embed.description = (
 
-            "15 robux → 2🪙\n"
-            "25 robux → 4🪙\n"
-            "50 robux → 10🪙\n"
-            "75 robux → 15🪙\n"
-            "100 robux → 21🪙\n"
-            "150 robux → 33🪙\n"
-            "200 robux → 46🪙\n"
-            "400 robux → 100🪙\n\n"
+    "💰 ROBUX → MOEDAS\n\n"
 
-            "💰 PIX possui "
-            "5% desconto."
-        )
+    "50 Robux ➜ 20🪙\n"
+    "100 Robux ➜ 50🪙\n"
+    "150 Robux ➜ 85🪙\n"
+    "200 Robux ➜ 120🪙\n"
+    "300 Robux ➜ 190🪙\n"
+    "400 Robux ➜ 260🪙\n"
+    "600 Robux ➜ 420🪙\n"
+    "800 Robux ➜ 600🪙\n\n"
+
+    "💵 PIX → MOEDAS\n\n"
+
+    "R$2 ➜ 50🪙\n"
+    "R$5 ➜ 140🪙\n"
+    "R$10 ➜ 320🪙\n"
+    "R$15 ➜ 520🪙\n"
+    "R$20 ➜ 760🪙\n"
+    "R$30 ➜ 1200🪙\n"
+    "R$40 ➜ 1700🪙\n"
+    "R$50 ➜ 2300🪙\n\n"
+
+    "✨ PIX possui melhor custo benefício."
+)
 
         await ctx.send(embed=embed)
 
@@ -146,7 +158,7 @@ def setup_economy(bot):
 
                 data[
                     str(member.id)
-                ]["coins"] += 10
+                ]["coins"] += 20
 
             elif discord.utils.get(
                 member.roles,
@@ -155,7 +167,7 @@ def setup_economy(bot):
 
                 data[
                     str(member.id)
-                ]["coins"] += 2
+                ]["coins"] += 4
 
         save_players(data)
 
