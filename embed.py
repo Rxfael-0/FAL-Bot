@@ -5,7 +5,7 @@ def setup_embed(bot):
 
     @bot.command(name="embed")
     @commands.has_permissions(administrator=True)
-    async def embed(ctx, canal: discord.TextChannel, cor, titulo, *, mensagem):
+    async def embed(ctx, canal: discord.TextChannel, cor, titulo, url, *, mensagem):
 
         cores = {
             "vermelho": discord.Color.red(),
@@ -36,6 +36,8 @@ def setup_embed(bot):
             text=f"Enviado por {ctx.author}",
             icon_url=ctx.author.avatar.url if ctx.author.avatar else None
         )
+
+        emb.set_image(url=url)
 
         await canal.send(embed=emb)
 
