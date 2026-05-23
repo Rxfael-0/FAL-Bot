@@ -86,10 +86,10 @@ class QueueView(View):
 
         await interaction.response.send_message(
             (
-                f"✅ {interaction.user.mention} "
-                f"entrou na fila "
+                f"✅ Você entrou na fila "
                 f"{self.league}"
-            )
+            ),
+            ephemeral=True
         )
 
         if len(filas[self.league]) >= 4:
@@ -98,7 +98,7 @@ class QueueView(View):
 
             players = ""
 
-            for m in filas[self.league]:
+            for m in filas[self.league][:4]:
 
                 players += f"{m.mention}\n"
 
@@ -108,7 +108,10 @@ class QueueView(View):
 
             embed = discord.Embed(
                 title=f"⚔️ FILA {self.league} COMPLETA",
-                description=players,
+                description=(
+                    "🎮 Partida encontrada!\n\n"
+                    f"{players}"
+                ),
                 color=discord.Color.red()
             )
 
@@ -118,6 +121,10 @@ class QueueView(View):
             )
 
             await interaction.channel.send(
+                content=(
+                    f"{players}\n"
+                    f"{analista.mention}"
+                ),
                 embed=embed
             )
 
@@ -153,9 +160,10 @@ class QueueView(View):
 
         await interaction.response.send_message(
             (
-                f"❌ {interaction.user.mention} "
-                f"saiu da fila."
-            )
+                f"❌ Você saiu da fila "
+                f"{self.league}"
+            ),
+            ephemeral=True
         )
 
 def setup_queue(bot):
@@ -214,4 +222,4 @@ def setup_queue(bot):
         await ctx.send(
             embed=embed,
             view=QueueView(league)
-            )
+                )
