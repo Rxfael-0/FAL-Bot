@@ -9,6 +9,7 @@ from economy import setup_economy
 from queue_system import setup_queue
 from clans import setup_clans, check_inactive
 from embed import setup_embed
+from tournament import setup_tournament
 
 intents = discord.Intents.default()
 
@@ -48,5 +49,6 @@ setup_economy(bot)
 setup_queue(bot)
 setup_clans(bot)
 setup_embed(bot)
+setup_tournament(bot)
 
 bot.run(os.getenv("TOKEN"))
