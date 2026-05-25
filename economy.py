@@ -1,21 +1,55 @@
 import discord
 from discord.ext import commands, tasks
-import json
+import sqlite3
 
-PLAYERS = "database/players.json"
+conn = sqlite3.connect("database/database.db")
+cursor = conn.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS players (
+    id TEXT PRIMARY KEY,
+    data TEXT
+)
+""")
+
+conn.commit()
 
 VIP = 1460867416081825904
 MEGAVIP = 1460867926948057202
 
 def load_players():
 
-    with open(PLAYERS, "r") as f:
-        return json.load(f)
+    cursor.execute(
+        "SELECT id, data FROM players"
+    )
+
+    rows = cursor.fetchall()
+
+    data = {}
+
+    for uid, player_data in rows:
+
+        data[uid] = json.loads(player_data)
+
+    return data
 
 def save_players(data):
 
-    with open(PLAYERS, "w") as f:
-        json.dump(data, f, indent=4)
+    cursor.execute(
+        "DELETE FROM players"
+    )
+
+    for uid, player_data in data.items():
+
+        cursor.execute(
+            "INSERT INTO players (id, data) VALUES (?, ?)",
+            (
+                uid,
+                json.dumps(player_data)
+            )
+        )
+
+    conn.commit()
 
 def create_player(data, uid):
 
