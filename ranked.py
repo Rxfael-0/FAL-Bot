@@ -11,8 +11,7 @@ import sqlite3
 # DATABASES
 # =========================
 
-PLAYERS = "database/database.db"
-MATCHES = "database/matches.json"
+DATABASE = "database/database.db"
 
 # =========================
 # CANAIS
@@ -299,14 +298,14 @@ def setup_ranked(bot):
         if member is None:
             member = ctx.author
 
-        players = load_players()
+        player = get_player(member.id)
 
         create_player(
             players,
             member.id
         )
 
-        save_players(players)
+        update_player(member.id, player)
 
         p = players[str(member.id)]
 
