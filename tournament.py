@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from discord.ui import View, Select, Modal, TextInput
-import json
+import sqlite3
 
 REGISTRO_CHANNEL = 1463346916120068106
 LOGS_CHANNEL = 1463389943995830445
@@ -12,25 +12,42 @@ MEGAVIP_ROLE = 1460867926948057202
 
 MAX_VAGAS = 32
 
-INSCRICOES = "database/tournament.json"
+# =========================
+# SQLITE
+# =========================
 
-def load_data():
+conn = sqlite3.connect(
+    "database/database.db"
+)
 
-    try:
+cursor = conn.cursor()
 
-        with open(INSCRICOES, "r") as f:
+cursor.execute("""
 
-            return json.load(f)
+CREATE TABLE IF NOT EXISTS tournament (
 
-    except:
+    user_id INTEGER PRIMARY KEY,
 
-        return {}
+    tipo TEXT,
+    nome TEXT,
+    roblox TEXT,
+    convidado TEXT,
 
-def save_data(data):
+    validado INTEGER DEFAULT 0
 
-    with open(INSCRICOES, "w") as f:
+)
 
-        json.dump(data, f, indent=4)
+""")
+
+conn.commit()
+
+def total_inscritos():
+
+    cursor.execute(
+        "SELECT COUNT(*) FROM tournament"
+    )
+
+    return cursor.fetchone()[0]
 
 # =========================
 # MODAIS
@@ -57,32 +74,52 @@ class NormalModal(Modal, title="Inscrição Normal"):
 
     async def on_submit(self, interaction):
 
-        data = load_data()
+        cursor.execute(
 
-        if str(interaction.user.id) in data:
+            "SELECT * FROM tournament WHERE user_id = ?",
+
+            (interaction.user.id,)
+        )
+
+        if cursor.fetchone():
 
             return await interaction.response.send_message(
                 "❌ Você já está inscrito.",
                 ephemeral=True
             )
 
-        if len(data) >= MAX_VAGAS:
+        if total_inscritos() >= MAX_VAGAS:
 
             return await interaction.response.send_message(
                 "❌ Todas vagas foram preenchidas.",
                 ephemeral=True
             )
 
-        data[str(interaction.user.id)] = {
+        cursor.execute("""
 
-            "tipo": "NORMAL",
-            "nome": self.nome.value,
-            "roblox": self.roblox.value,
-            "convidado": self.convidado.value,
-            "validado": False
-        }
+        INSERT INTO tournament (
 
-        save_data(data)
+            user_id,
+            tipo,
+            nome,
+            roblox,
+            convidado
+
+        )
+
+        VALUES (?, ?, ?, ?, ?)
+
+        """, (
+
+            interaction.user.id,
+            "NORMAL",
+            self.nome.value,
+            self.roblox.value,
+            self.convidado.value
+
+        ))
+
+        conn.commit()
 
         canal = interaction.guild.get_channel(
             LOGS_CHANNEL
@@ -153,31 +190,50 @@ class VipModal(Modal):
 
     async def on_submit(self, interaction):
 
-        data = load_data()
+        cursor.execute(
 
-        if str(interaction.user.id) in data:
+            "SELECT * FROM tournament WHERE user_id = ?",
+
+            (interaction.user.id,)
+        )
+
+        if cursor.fetchone():
 
             return await interaction.response.send_message(
                 "❌ Você já está inscrito.",
                 ephemeral=True
             )
 
-        if len(data) >= MAX_VAGAS:
+        if total_inscritos() >= MAX_VAGAS:
 
             return await interaction.response.send_message(
                 "❌ Todas vagas foram preenchidas.",
                 ephemeral=True
             )
 
-        data[str(interaction.user.id)] = {
+        cursor.execute("""
 
-            "tipo": self.tipo,
-            "nome": self.nome.value,
-            "roblox": self.roblox.value,
-            "validado": False
-        }
+        INSERT INTO tournament (
 
-        save_data(data)
+            user_id,
+            tipo,
+            nome,
+            roblox
+
+        )
+
+        VALUES (?, ?, ?, ?)
+
+        """, (
+
+            interaction.user.id,
+            self.tipo,
+            self.nome.value,
+            self.roblox.value
+
+        ))
+
+        conn.commit()
 
         canal = interaction.guild.get_channel(
             LOGS_CHANNEL
@@ -298,6 +354,8 @@ def setup_tournament(bot):
 
             return
 
+        vagas = MAX_VAGAS - total_inscritos()
+
         embed = discord.Embed(
 
             title="🎟 INSCRIÇÕES — TORNEIO FAL",
@@ -316,7 +374,7 @@ def setup_tournament(bot):
                 "🔥 MEGAVIP — 50 Robux\n"
                 "• Prioridade máxima\n\n"
 
-                f"🎮 Vagas disponíveis: {MAX_VAGAS}\n\n"
+                f"🎮 Vagas restantes: {vagas}/{MAX_VAGAS}\n\n"
 
                 "⚠ Todas inscrições passam "
                 "por validação da staff."
@@ -336,19 +394,34 @@ def setup_tournament(bot):
         member: discord.Member
     ):
 
-        data = load_data()
+        cursor.execute(
 
-        if str(member.id) not in data:
+            "SELECT tipo FROM tournament WHERE user_id = ?",
+
+            (member.id,)
+        )
+
+        resultado = cursor.fetchone()
+
+        if not resultado:
 
             return await ctx.send(
                 "❌ Usuário não encontrado."
             )
 
-        data[str(member.id)]["validado"] = True
+        tipo = resultado[0]
 
-        tipo = data[str(member.id)]["tipo"]
+        cursor.execute("""
 
-        save_data(data)
+        UPDATE tournament
+
+        SET validado = 1
+
+        WHERE user_id = ?
+
+        """, (member.id,))
+
+        conn.commit()
 
         if tipo == "VIP":
 
@@ -388,4 +461,4 @@ def setup_tournament(bot):
 
         await ctx.send(
             "✅ Inscrição validada."
-)
+            )
