@@ -2,9 +2,20 @@ import discord
 from discord.ext import commands, tasks
 from discord.ui import View, button
 from datetime import datetime
+import sqlite3
 import json
 
-CLANS_FILE = "database/clans.json"
+conn = sqlite3.connect("database/database.db")
+cursor = conn.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS clans (
+    name TEXT PRIMARY KEY,
+    data TEXT
+)
+""")
+
+conn.commit()
 
 INFO_CHANNEL = 1504652700921626716
 CREATE_CHANNEL = 1504654261664092210
@@ -22,26 +33,43 @@ LEADER_ROLE = 1399181565162033243
 MAX_MEMBERS = 5
 
 # =========================
-# JSON
+# SQLITE
 # =========================
 
 def load_clans():
 
-    try:
+    cursor.execute(
+        "SELECT name, data FROM clans"
+    )
 
-        with open(CLANS_FILE, "r") as f:
+    rows = cursor.fetchall()
 
-            return json.load(f)
+    data = {}
 
-    except:
+    for name, clan_data in rows:
 
-        return {}
+        data[name] = json.loads(clan_data)
+
+    return data
 
 def save_clans(data):
 
-    with open(CLANS_FILE, "w") as f:
+    cursor.execute(
+        "DELETE FROM clans"
+    )
 
-        json.dump(data, f, indent=4)
+    for name, clan_data in data.items():
+
+        cursor.execute(
+            "INSERT INTO clans (name, data) VALUES (?, ?)",
+            (
+                name,
+                json.dumps(clan_data)
+            )
+        )
+
+    conn.commit()
+
 
 # =========================
 # UPDATE PANEL
