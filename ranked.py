@@ -5,12 +5,13 @@ from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont
 import json
 import asyncio
+import sqlite3
 
 # =========================
 # DATABASES
 # =========================
 
-PLAYERS = "database/players.json"
+PLAYERS = "database/database.db"
 MATCHES = "database/matches.json"
 
 # =========================
@@ -62,52 +63,125 @@ SEASON_ROLE = 1499609960869400636
 
 WINNER_ROLE = None
 
-# =========================
-# JSON
-# =========================
-
-def load_players():
-
-    with open(PLAYERS, "r") as f:
-        return json.load(f)
-
-def save_players(data):
-
-    with open(PLAYERS, "w") as f:
-        json.dump(data, f, indent=4)
-
-def load_matches():
-
-    with open(MATCHES, "r") as f:
-        return json.load(f)
-
-def save_matches(data):
-
-    with open(MATCHES, "w") as f:
-        json.dump(data, f, indent=4)
 
 # =========================
-# PLAYER
+# SQLITE
 # =========================
 
-def create_player(players, user_id):
+def connect_db():
 
-    if str(user_id) not in players:
+    return sqlite3.connect(PLAYERS)
 
-        players[str(user_id)] = {
+def setup_database():
 
-            "trofeus": 0,
-            "medalhas": 0,
-            "coins": 0,
+    conn = connect_db()
+    cursor = conn.cursor()
 
-            "wins": 0,
-            "losses": 0,
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS players (
+        user_id TEXT PRIMARY KEY,
+        trofeus INTEGER,
+        medalhas INTEGER,
+        coins INTEGER,
+        wins INTEGER,
+        losses INTEGER,
+        seasonwins TEXT,
+        medals TEXT,
+        hall TEXT,
+        partidas TEXT
+    )
+    """)
 
-            "seasonwins": [],
-            "medals": [],
-            "hall": [],
-            "partidas": []
-        }
+    conn.commit()
+    conn.close()
+
+def create_player(user_id):
+
+    conn = connect_db()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT * FROM players WHERE user_id = ?",
+        (str(user_id),)
+    )
+
+    player = cursor.fetchone()
+
+    if not player:
+
+        cursor.execute("""
+        INSERT INTO players VALUES (
+            ?, 0, 0, 0, 0, 0,
+            '[]', '[]', '[]', '[]'
+        )
+        """, (str(user_id),))
+
+        conn.commit()
+
+    conn.close()
+
+def get_player(user_id):
+
+    create_player(user_id)
+
+    conn = connect_db()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT * FROM players WHERE user_id = ?",
+        (str(user_id),)
+    )
+
+    data = cursor.fetchone()
+
+    conn.close()
+
+    return {
+        "trofeus": data[1],
+        "medalhas": data[2],
+        "coins": data[3],
+        "wins": data[4],
+        "losses": data[5],
+        "seasonwins": json.loads(data[6]),
+        "medals": json.loads(data[7]),
+        "hall": json.loads(data[8]),
+        "partidas": json.loads(data[9])
+    }
+
+def update_player(user_id, data):
+
+    conn = connect_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    UPDATE players SET
+    trofeus = ?,
+    medalhas = ?,
+    coins = ?,
+    wins = ?,
+    losses = ?,
+    seasonwins = ?,
+    medals = ?,
+    hall = ?,
+    partidas = ?
+    WHERE user_id = ?
+    """, (
+
+        data["trofeus"],
+        data["medalhas"],
+        data["coins"],
+        data["wins"],
+        data["losses"],
+        json.dumps(data["seasonwins"]),
+        json.dumps(data["medals"]),
+        json.dumps(data["hall"]),
+        json.dumps(data["partidas"]),
+        str(user_id)
+
+    ))
+
+    conn.commit()
+    conn.close()
 
 # =========================
 # RANK SYSTEM
@@ -210,6 +284,7 @@ async def send_log(guild, text):
 # =========================
 
 def setup_ranked(bot):
+    setup_database()
 
     # =========================
     # PERFIL
