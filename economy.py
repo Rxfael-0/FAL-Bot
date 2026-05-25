@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands, tasks
 import sqlite3
+import json
 
 conn = sqlite3.connect("database/database.db")
 cursor = conn.cursor()
