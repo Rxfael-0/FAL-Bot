@@ -69,7 +69,9 @@ WINNER_ROLE = None
 
 def connect_db():
 
-    return sqlite3.connect(PLAYERS)
+    return sqlite3.connect(
+        "database/database.db"
+)
 
 def setup_database():
 
