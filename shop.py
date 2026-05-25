@@ -1,8 +1,8 @@
 import discord
 from discord.ext import commands, tasks
-import json
+import sqlite3
 
-PLAYERS = "database/players.json"
+DATABASE = "database/database.db"
 
 SHOP_CHANNEL = 1506470884381167726
 
@@ -11,33 +11,96 @@ BOOST_ROLE = 1499608761592053840
 CURSE_ROLE = 1499609510623580190
 SEASON_ROLE = 1499609960869400636
 
-def load_players():
+# =========================
+# SQLITE
+# =========================
 
-    with open(PLAYERS, "r") as f:
-        return json.load(f)
+def connect_db():
 
-def save_players(data):
+    return sqlite3.connect(DATABASE)
 
-    with open(PLAYERS, "w") as f:
-        json.dump(data, f, indent=4)
+def create_player(uid):
 
-def create_player(data, uid):
+    conn = connect_db()
+    cursor = conn.cursor()
 
-    if str(uid) not in data:
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS players (
+        user_id TEXT PRIMARY KEY,
+        trofeus INTEGER,
+        medalhas INTEGER,
+        coins INTEGER,
+        wins INTEGER,
+        losses INTEGER,
+        seasonwins TEXT,
+        medals TEXT,
+        hall TEXT,
+        partidas TEXT,
+        shop_week INTEGER
+    )
+    """)
 
-        data[str(uid)] = {
+    cursor.execute(
+        "SELECT * FROM players WHERE user_id = ?",
+        (str(uid),)
+    )
 
-            "trofeus": 0,
-            "medalhas": 0,
-            "coins": 0,
-            "wins": 0,
-            "losses": 0,
-            "seasonwins": [],
-            "medals": [],
-            "hall": [],
-            "partidas": [],
-            "shop_week": 0
-        }
+    player = cursor.fetchone()
+
+    if not player:
+
+        cursor.execute("""
+        INSERT INTO players VALUES (
+            ?, 0, 0, 0, 0, 0,
+            '[]', '[]', '[]', '[]', 0
+        )
+        """, (str(uid),))
+
+    conn.commit()
+    conn.close()
+
+def get_player(uid):
+
+    create_player(uid)
+
+    conn = connect_db()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT * FROM players WHERE user_id = ?",
+        (str(uid),)
+    )
+
+    data = cursor.fetchone()
+
+    conn.close()
+
+    return {
+        "coins": data[3],
+        "shop_week": data[10]
+    }
+
+def update_player(uid, coins, shop_week):
+
+    conn = connect_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    UPDATE players
+    SET coins = ?, shop_week = ?
+    WHERE user_id = ?
+    """, (
+        coins,
+        shop_week,
+        str(uid)
+    ))
+
+    conn.commit()
+    conn.close()
+
+# =========================
+# LOJA
+# =========================
 
 LOJA = {
 
@@ -69,6 +132,10 @@ LOJA = {
         "cargo": SEASON_ROLE
     }
 }
+
+# =========================
+# SETUP
+# =========================
 
 def setup_shop(bot):
 
@@ -107,10 +174,7 @@ def setup_shop(bot):
         await ctx.send(embed=embed)
 
     @bot.command()
-    async def buy(
-        ctx,
-        item
-    ):
+    async def buy(ctx, item):
 
         item = item.lower()
 
@@ -120,16 +184,11 @@ def setup_shop(bot):
                 "❌ Item inválido."
             )
 
-        data = load_players()
+        create_player(ctx.author.id)
 
-        create_player(
-            data,
-            ctx.author.id
-        )
+        player = get_player(ctx.author.id)
 
-        if data[
-            str(ctx.author.id)
-        ]["shop_week"] >= 3:
+        if player["shop_week"] >= 3:
 
             return await ctx.send(
                 "❌ Você atingiu o limite semanal de compras. (3/3)"
@@ -147,23 +206,20 @@ def setup_shop(bot):
 
         preco = LOJA[item]["preco"]
 
-        if data[
-            str(ctx.author.id)
-        ]["coins"] < preco:
+        if player["coins"] < preco:
 
             return await ctx.send(
                 "❌ Coins insuficientes."
             )
 
-        data[
-            str(ctx.author.id)
-        ]["coins"] -= preco
+        player["coins"] -= preco
+        player["shop_week"] += 1
 
-        data[
-            str(ctx.author.id)
-        ]["shop_week"] += 1
-
-        save_players(data)
+        update_player(
+            ctx.author.id,
+            player["coins"],
+            player["shop_week"]
+        )
 
         await ctx.author.add_roles(
             cargo
@@ -178,7 +234,7 @@ def setup_shop(bot):
                 f"{LOJA[item]['nome']}\n\n"
 
                 f"🛒 Compras semanais: "
-                f"{data[str(ctx.author.id)]['shop_week']}/3"
+                f"{player['shop_week']}/3"
             ),
             color=discord.Color.green()
         )
@@ -191,13 +247,16 @@ def setup_shop(bot):
     )
     async def resetshop(ctx):
 
-        data = load_players()
+        conn = connect_db()
+        cursor = conn.cursor()
 
-        for player in data:
+        cursor.execute("""
+        UPDATE players
+        SET shop_week = 0
+        """)
 
-            data[player]["shop_week"] = 0
-
-        save_players(data)
+        conn.commit()
+        conn.close()
 
         await ctx.send(
             "✅ Limite semanal resetado."
@@ -206,12 +265,15 @@ def setup_shop(bot):
 @tasks.loop(hours=168)
 async def reset_shop_limits():
 
-    data = load_players()
+    conn = connect_db()
+    cursor = conn.cursor()
 
-    for player in data:
+    cursor.execute("""
+    UPDATE players
+    SET shop_week = 0
+    """)
 
-        data[player]["shop_week"] = 0
-
-    save_players(data)
+    conn.commit()
+    conn.close()
 
     print("🛒 Loja semanal resetada.")
