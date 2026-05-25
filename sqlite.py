@@ -6,7 +6,10 @@ conn = sqlite3.connect(
 
 cursor = conn.cursor()
 
+# =========================
 # PLAYERS
+# =========================
+
 cursor.execute("""
 
 CREATE TABLE IF NOT EXISTS players (
@@ -20,13 +23,21 @@ CREATE TABLE IF NOT EXISTS players (
     wins INTEGER DEFAULT 0,
     losses INTEGER DEFAULT 0,
 
-    shop_week INTEGER DEFAULT 0
+    shop_week INTEGER DEFAULT 0,
+
+    seasonwins TEXT DEFAULT '[]',
+    medals TEXT DEFAULT '[]',
+    hall TEXT DEFAULT '[]',
+    partidas TEXT DEFAULT '[]'
 
 )
 
 """)
 
+# =========================
 # CLANS
+# =========================
+
 cursor.execute("""
 
 CREATE TABLE IF NOT EXISTS clans (
@@ -56,3 +67,6 @@ CREATE TABLE IF NOT EXISTS clans (
 """)
 
 conn.commit()
+conn.close()
+
+print("✅ Banco de dados iniciado.")
