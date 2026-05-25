@@ -1,21 +1,56 @@
 import discord
 from discord.ext import commands
 from datetime import datetime
+import sqlite3
 import json
 
-HALL_FILE = "database/hall.json"
+conn = sqlite3.connect("database/database.db")
+cursor = conn.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS hall (
+    id TEXT PRIMARY KEY,
+    data TEXT
+)
+""")
+
+conn.commit()
 
 HALL_CHANNEL = 1461218594615459979
 
 def load_hall():
 
-    with open(HALL_FILE, "r") as f:
-        return json.load(f)
+    cursor.execute(
+        "SELECT id, data FROM hall"
+    )
+
+    rows = cursor.fetchall()
+
+    data = {}
+
+    for uid, hall_data in rows:
+
+        data[uid] = json.loads(hall_data)
+
+    return data
 
 def save_hall(data):
 
-    with open(HALL_FILE, "w") as f:
-        json.dump(data, f, indent=4)
+    cursor.execute(
+        "DELETE FROM hall"
+    )
+
+    for uid, hall_data in data.items():
+
+        cursor.execute(
+            "INSERT INTO hall (id, data) VALUES (?, ?)",
+            (
+                uid,
+                json.dumps(hall_data)
+            )
+        )
+
+    conn.commit()
 
 def setup_hall(bot):
 
