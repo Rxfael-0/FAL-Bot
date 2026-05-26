@@ -68,33 +68,6 @@ def connect_db():
 
     return sqlite3.connect(DATABASE)
 
-def setup_database():
-
-    conn = connect_db()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS players (
-    user_id TEXT PRIMARY KEY,
-
-    trofeus INTEGER DEFAULT 0,
-    medalhas INTEGER DEFAULT 0,
-    coins INTEGER DEFAULT 0,
-
-    wins INTEGER DEFAULT 0,
-    losses INTEGER DEFAULT 0,
-
-    seasonwins TEXT DEFAULT '[]',
-    medals TEXT DEFAULT '[]',
-    hall TEXT DEFAULT '[]',
-    partidas TEXT DEFAULT '[]',
-
-    shop_week INTEGER DEFAULT 0
-)
-    """)
-
-    conn.commit()
-    conn.close()
 
 def create_player(user_id):
 
@@ -296,8 +269,6 @@ async def send_log(guild, text):
 # =========================
 
 def setup_ranked(bot):
-
-    setup_database()
 
     # =========================
     # PERFIL
