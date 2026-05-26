@@ -10,8 +10,15 @@ conn = sqlite3.connect(
 cursor = conn.cursor()
 
 cursor.execute("""
+cursor.execute("""
 
-CREATE TABLE IF NOT EXISTS players (
+DROP TABLE IF EXISTS players
+
+""")
+
+cursor.execute("""
+
+CREATE TABLE players (
 
     user_id INTEGER PRIMARY KEY,
 
