@@ -1,14 +1,13 @@
 import sqlite3
+import os
+
+os.makedirs("database", exist_ok=True)
 
 conn = sqlite3.connect(
     "database/database.db"
 )
 
 cursor = conn.cursor()
-
-# =========================
-# PLAYERS
-# =========================
 
 cursor.execute("""
 
@@ -33,10 +32,6 @@ CREATE TABLE IF NOT EXISTS players (
 )
 
 """)
-
-# =========================
-# CLANS
-# =========================
 
 cursor.execute("""
 
@@ -69,4 +64,4 @@ CREATE TABLE IF NOT EXISTS clans (
 conn.commit()
 conn.close()
 
-print("✅ Banco de dados iniciado.")
+print("✅ Banco criado.")
