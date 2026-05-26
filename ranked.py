@@ -75,21 +75,22 @@ def setup_database():
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS players (
+    user_id TEXT PRIMARY KEY,
 
-        user_id TEXT PRIMARY KEY,
+    trofeus INTEGER DEFAULT 0,
+    medalhas INTEGER DEFAULT 0,
+    coins INTEGER DEFAULT 0,
 
-        trofeus INTEGER DEFAULT 0,
-        medalhas INTEGER DEFAULT 0,
-        coins INTEGER DEFAULT 0,
+    wins INTEGER DEFAULT 0,
+    losses INTEGER DEFAULT 0,
 
-        wins INTEGER DEFAULT 0,
-        losses INTEGER DEFAULT 0,
+    seasonwins TEXT DEFAULT '[]',
+    medals TEXT DEFAULT '[]',
+    hall TEXT DEFAULT '[]',
+    partidas TEXT DEFAULT '[]',
 
-        seasonwins TEXT DEFAULT '[]',
-        medals TEXT DEFAULT '[]',
-        hall TEXT DEFAULT '[]',
-        partidas TEXT DEFAULT '[]'
-    )
+    shop_week INTEGER DEFAULT 0
+)
     """)
 
     conn.commit()
