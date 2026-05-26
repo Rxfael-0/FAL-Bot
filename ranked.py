@@ -340,7 +340,7 @@ def setup_ranked(bot):
             color=discord.Color.red()
         )
 
-        embed.set_thumbnail
+        embed.set_thumbnail(
             url=member.display_avatar.url
         )
 
