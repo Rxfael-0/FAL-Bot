@@ -119,10 +119,12 @@ def get_player(user_id):
         "wins": data[4],
         "losses": data[5],
 
-        "seasonwins": json.loads(data[6]),
-        "medals": json.loads(data[7]),
-        "hall": json.loads(data[8]),
-        "partidas": json.loads(data[9])
+        "shop_week": data[6],
+
+        "seasonwins": json.loads(data[7]),
+        "medals": json.loads(data[8]),
+        "hall": json.loads(data[9]),
+        "partidas": json.loads(data[10])
     }
 
 def update_player(user_id, data):
@@ -140,6 +142,8 @@ def update_player(user_id, data):
         wins = ?,
         losses = ?,
 
+        shop_week = ?,
+
         seasonwins = ?,
         medals = ?,
         hall = ?,
@@ -154,6 +158,8 @@ def update_player(user_id, data):
 
         data["wins"],
         data["losses"],
+
+        data["shop_week"],
 
         json.dumps(data["seasonwins"]),
         json.dumps(data["medals"]),
