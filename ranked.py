@@ -1,14 +1,14 @@
 import discord
 from discord.ext import commands
 from discord.ui import View, button
-from datetime import datetime, timedelta
+from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 import json
 import asyncio
 import sqlite3
 
 # =========================
-# DATABASES
+# DATABASE
 # =========================
 
 DATABASE = "database/database.db"
@@ -60,18 +60,13 @@ BOOST_ROLE = 1499608761592053840
 CURSE_ROLE = 1499609510623580190
 SEASON_ROLE = 1499609960869400636
 
-WINNER_ROLE = None
-
-
 # =========================
 # SQLITE
 # =========================
 
 def connect_db():
 
-    return sqlite3.connect(
-        "database/database.db"
-)
+    return sqlite3.connect(DATABASE)
 
 def setup_database():
 
@@ -80,16 +75,20 @@ def setup_database():
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS players (
+
         user_id TEXT PRIMARY KEY,
-        trofeus INTEGER,
-        medalhas INTEGER,
-        coins INTEGER,
-        wins INTEGER,
-        losses INTEGER,
-        seasonwins TEXT,
-        medals TEXT,
-        hall TEXT,
-        partidas TEXT
+
+        trofeus INTEGER DEFAULT 0,
+        medalhas INTEGER DEFAULT 0,
+        coins INTEGER DEFAULT 0,
+
+        wins INTEGER DEFAULT 0,
+        losses INTEGER DEFAULT 0,
+
+        seasonwins TEXT DEFAULT '[]',
+        medals TEXT DEFAULT '[]',
+        hall TEXT DEFAULT '[]',
+        partidas TEXT DEFAULT '[]'
     )
     """)
 
@@ -102,19 +101,19 @@ def create_player(user_id):
     cursor = conn.cursor()
 
     cursor.execute(
-        "SELECT * FROM players WHERE user_id = ?",
+        "SELECT user_id FROM players WHERE user_id = ?",
         (str(user_id),)
     )
 
-    player = cursor.fetchone()
+    data = cursor.fetchone()
 
-    if not player:
+    if not data:
 
         cursor.execute("""
-        INSERT INTO players VALUES (
-            ?, 0, 0, 0, 0, 0,
-            '[]', '[]', '[]', '[]'
+        INSERT INTO players (
+            user_id
         )
+        VALUES (?)
         """, (str(user_id),))
 
         conn.commit()
@@ -138,11 +137,14 @@ def get_player(user_id):
     conn.close()
 
     return {
+
         "trofeus": data[1],
         "medalhas": data[2],
         "coins": data[3],
+
         "wins": data[4],
         "losses": data[5],
+
         "seasonwins": json.loads(data[6]),
         "medals": json.loads(data[7]),
         "hall": json.loads(data[8]),
@@ -156,29 +158,35 @@ def update_player(user_id, data):
 
     cursor.execute("""
     UPDATE players SET
-    trofeus = ?,
-    medalhas = ?,
-    coins = ?,
-    wins = ?,
-    losses = ?,
-    seasonwins = ?,
-    medals = ?,
-    hall = ?,
-    partidas = ?
+
+        trofeus = ?,
+        medalhas = ?,
+        coins = ?,
+
+        wins = ?,
+        losses = ?,
+
+        seasonwins = ?,
+        medals = ?,
+        hall = ?,
+        partidas = ?
+
     WHERE user_id = ?
     """, (
 
         data["trofeus"],
         data["medalhas"],
         data["coins"],
+
         data["wins"],
         data["losses"],
+
         json.dumps(data["seasonwins"]),
         json.dumps(data["medals"]),
         json.dumps(data["hall"]),
         json.dumps(data["partidas"]),
-        str(user_id)
 
+        str(user_id)
     ))
 
     conn.commit()
@@ -251,6 +259,7 @@ async def update_roles(member, trofeus):
         role = guild.get_role(rid)
 
         if role in member.roles:
+
             await member.remove_roles(role)
 
     for lid in LEAGUES.values():
@@ -258,6 +267,7 @@ async def update_roles(member, trofeus):
         role = guild.get_role(lid)
 
         if role in member.roles:
+
             await member.remove_roles(role)
 
     await member.add_roles(
@@ -285,13 +295,13 @@ async def send_log(guild, text):
 # =========================
 
 def setup_ranked(bot):
-    setup_database()
 
+    setup_database()
 
     # =========================
     # PERFIL
     # =========================
-    
+
     @bot.command()
     async def perfil(
         ctx,
@@ -299,6 +309,7 @@ def setup_ranked(bot):
     ):
 
         if member is None:
+
             member = ctx.author
 
         p = get_player(member.id)
@@ -318,6 +329,7 @@ def setup_ranked(bot):
             medals += f"{medal} "
 
         if medals == "":
+
             medals = "Nenhuma."
 
         hall = ""
@@ -330,10 +342,8 @@ def setup_ranked(bot):
             )
 
         if hall == "":
-            hall = (
-                "❌ Nenhum desempenho "
-                "registrado."
-            )
+
+            hall = "❌ Nenhum desempenho registrado."
 
         embed = discord.Embed(
             title=f"🏆 Perfil de {member.name}",
@@ -346,17 +356,17 @@ def setup_ranked(bot):
 
         embed.add_field(
             name="🏅 Rank",
-            value=f"{rank}"
+            value=rank
         )
-    
+
         embed.add_field(
             name="🏆 Troféus",
-            value=f"{p['trofeus']}"
+            value=p["trofeus"]
         )
 
         embed.add_field(
             name="🎖 Medalhas",
-            value=f"{p['medalhas']}"
+            value=p["medalhas"]
         )
 
         embed.add_field(
@@ -373,7 +383,7 @@ def setup_ranked(bot):
             name="🏅 Coleção",
             value=medals,
             inline=False
-       )
+        )
 
         embed.add_field(
             name="🏁 Hall da fama",
@@ -384,7 +394,7 @@ def setup_ranked(bot):
         await ctx.send(embed=embed)
 
     # =========================
-    # ADD TROFÉU
+    # ADD TROFEU
     # =========================
 
     @bot.command()
@@ -417,9 +427,11 @@ def setup_ranked(bot):
         player["partidas"].append({
 
             "resultado": f"+{ganhou}🏆",
+
             "data": datetime.now().strftime(
                 "%d/%m/%Y"
             ),
+
             "staff": ctx.author.name
         })
 
@@ -436,8 +448,8 @@ def setup_ranked(bot):
         embed = discord.Embed(
             title="🏆 TROFÉUS ADICIONADOS",
             description=(
-                f"{member.mention} "
-                f"ganhou +{ganhou}🏆"
+                f"{member.mention} ganhou "
+                f"+{ganhou}🏆"
             ),
             color=discord.Color.green()
         )
@@ -453,8 +465,8 @@ def setup_ranked(bot):
             )
         )
 
-# =========================
-    # REMOVE TROFÉU
+    # =========================
+    # REMOVE TROFEU
     # =========================
 
     @bot.command()
@@ -476,11 +488,9 @@ def setup_ranked(bot):
             id=PROTECTION_ROLE
         ):
 
-            await ctx.send(
+            return await ctx.send(
                 "🛡 Proteção ativada."
             )
-
-            return
 
         if discord.utils.get(
             member.roles,
@@ -494,9 +504,11 @@ def setup_ranked(bot):
         player["partidas"].append({
 
             "resultado": f"-{perda}🏆",
+
             "data": datetime.now().strftime(
                 "%d/%m/%Y"
             ),
+
             "staff": ctx.author.name
         })
 
@@ -513,8 +525,8 @@ def setup_ranked(bot):
         embed = discord.Embed(
             title="❌ TROFÉUS REMOVIDOS",
             description=(
-                f"{member.mention} "
-                f"perdeu -{perda}🏆"
+                f"{member.mention} perdeu "
+                f"-{perda}🏆"
             ),
             color=discord.Color.red()
         )
@@ -528,7 +540,7 @@ def setup_ranked(bot):
                 f"{perda}🏆 de "
                 f"{member}"
             )
-        )
+    )
 
     # =========================
     # PARTIDAS
