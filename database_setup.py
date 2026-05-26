@@ -10,7 +10,6 @@ conn = sqlite3.connect(
 cursor = conn.cursor()
 
 cursor.execute("""
-cursor.execute("""
 
 DROP TABLE IF EXISTS players
 
