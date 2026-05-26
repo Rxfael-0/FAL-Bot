@@ -293,165 +293,165 @@ def setup_ranked(bot):
     # =========================
     
     @bot.command()
-async def perfil(
-    ctx,
-    member: discord.Member=None
-):
+    async def perfil(
+        ctx,
+        member: discord.Member=None
+    ):
 
-    if member is None:
-        member = ctx.author
+        if member is None:
+            member = ctx.author
 
-    p = get_player(member.id)
+        p = get_player(member.id)
 
-    rank = get_rank(
-        p["trofeus"]
-    )
-
-    league = get_league(
-        p["trofeus"]
-    )
-
-    medals = ""
-
-    for medal in p["medals"]:
-
-        medals += f"{medal} "
-
-    if medals == "":
-        medals = "Nenhuma."
-
-    hall = ""
-
-    for item in p["hall"][-5:]:
-
-        hall += (
-            f"🏆 {item['data']} ┊ "
-            f"{item['feito']}\n"
+        rank = get_rank(
+            p["trofeus"]
         )
 
-    if hall == "":
-        hall = (
-            "❌ Nenhum desempenho "
-            "registrado."
+        league = get_league(
+            p["trofeus"]
         )
 
-    embed = discord.Embed(
-        title=f"🏆 Perfil de {member.name}",
-        color=discord.Color.red()
-    )
+        medals = ""
 
-    embed.set_thumbnail(
+        for medal in p["medals"]:
+
+            medals += f"{medal} "
+
+        if medals == "":
+            medals = "Nenhuma."
+
+        hall = ""
+
+        for item in p["hall"][-5:]:
+
+            hall += (
+                f"🏆 {item['data']} ┊ "
+                f"{item['feito']}\n"
+            )
+
+        if hall == "":
+            hall = (
+                "❌ Nenhum desempenho "
+                "registrado."
+            )
+
+        embed = discord.Embed(
+            title=f"🏆 Perfil de {member.name}",
+            color=discord.Color.red()
+        )
+
+        embed.set_thumbnail
         url=member.display_avatar.url
-    )
+        )
 
-    embed.add_field(
-        name="🏅 Rank",
-        value=f"{rank}"
-    )
+        embed.add_field(
+            name="🏅 Rank",
+            value=f"{rank}"
+        )
+    
+        embed.add_field(
+            name="🏆 Troféus",
+            value=f"{p['trofeus']}"
+        )
 
-    embed.add_field(
-        name="🏆 Troféus",
-        value=f"{p['trofeus']}"
-    )
+        embed.add_field(
+            name="🎖 Medalhas",
+            value=f"{p['medalhas']}"
+        )
 
-    embed.add_field(
-        name="🎖 Medalhas",
-        value=f"{p['medalhas']}"
-    )
+        embed.add_field(
+            name="🛡 League",
+            value=league
+        )
 
-    embed.add_field(
-        name="🛡 League",
-        value=league
-    )
+        embed.add_field(
+            name="🪙 Coins",
+            value=p["coins"]
+        )
 
-    embed.add_field(
-        name="🪙 Coins",
-        value=p["coins"]
-    )
+        embed.add_field(
+            name="🏅 Coleção",
+            value=medals
+            inline=False
+       )
 
-    embed.add_field(
-        name="🏅 Coleção",
-        value=medals,
-        inline=False
-    )
+        embed.add_field(
+            name="🏁 Hall da fama",
+            value=hall,
+            inline=False
+        )
 
-    embed.add_field(
-        name="🏁 Hall da fama",
-        value=hall,
-        inline=False
-    )
-
-    await ctx.send(embed=embed)
+        await ctx.send(embed=embed)
 
     # =========================
     # ADD TROFÉU
     # =========================
 
     @bot.command()
-@commands.has_permissions(
-    administrator=True
-)
-async def addtrofeu(
-    ctx,
-    quantidade: int,
-    member: discord.Member
-):
-
-    player = get_player(member.id)
-
-    ganhou = quantidade
-
-    if discord.utils.get(
-        member.roles,
-        id=BOOST_ROLE
+    @commands.has_permissions(
+        administrator=True
+    )
+    async def addtrofeu(
+        ctx,
+        quantidade: int,
+        member: discord.Member
     ):
 
-        ganhou *= 2
+        player = get_player(member.id)
 
-    player["trofeus"] += ganhou
+        ganhou = quantidade
 
-    if player["trofeus"] >= 5000:
+        if discord.utils.get(
+            member.roles,
+            id=BOOST_ROLE
+        ):
 
-        player["medalhas"] += 1
+            ganhou *= 2
 
-    player["partidas"].append({
+        player["trofeus"] += ganhou
 
-        "resultado": f"+{ganhou}🏆",
-        "data": datetime.now().strftime(
-            "%d/%m/%Y"
-        ),
-        "staff": ctx.author.name
-    })
+        if player["trofeus"] >= 5000:
 
-    update_player(
-        member.id,
-        player
-    )
+            player["medalhas"] += 1
 
-    await update_roles(
-        member,
-        player["trofeus"]
-    )
+        player["partidas"].append({
 
-    embed = discord.Embed(
-        title="🏆 TROFÉUS ADICIONADOS",
-        description=(
-            f"{member.mention} "
-            f"ganhou +{ganhou}🏆"
-        ),
-        color=discord.Color.green()
-    )
+            "resultado": f"+{ganhou}🏆",
+            "data": datetime.now().strftime(
+                "%d/%m/%Y"
+            ),
+            "staff": ctx.author.name
+        })
 
-    await ctx.send(embed=embed)
-
-    await send_log(
-        ctx.guild,
-        (
-            f"➕ {ctx.author} adicionou "
-            f"{ganhou}🏆 para "
-            f"{member}"
+        update_player(
+            member.id,
+            player
         )
-    )
+
+        await update_roles(
+            member,
+            player["trofeus"]
+        )
+
+        embed = discord.Embed(
+            title="🏆 TROFÉUS ADICIONADOS",
+            description=(
+                f"{member.mention} "
+                f"ganhou +{ganhou}🏆"
+            ),
+            color=discord.Color.green()
+        )
+
+        await ctx.send(embed=embed)
+
+        await send_log(
+            ctx.guild,
+            (
+                f"➕ {ctx.author} adicionou "
+                f"{ganhou}🏆 para "
+                f"{member}"
+            )
+        )
     
     # =========================
     # REMOVE TROFÉU
