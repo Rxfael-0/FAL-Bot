@@ -341,7 +341,7 @@ def setup_ranked(bot):
         )
 
         embed.set_thumbnail
-        url=member.display_avatar.url
+            url=member.display_avatar.url
         )
 
         embed.add_field(
