@@ -452,121 +452,121 @@ def setup_ranked(bot):
                 f"{member}"
             )
         )
-    
-    # =========================
+
+# =========================
     # REMOVE TROFÉU
     # =========================
 
     @bot.command()
-@commands.has_permissions(
-    administrator=True
-)
-async def removetrofeu(
-    ctx,
-    quantidade: int,
-    member: discord.Member
-):
-
-    player = get_player(member.id)
-
-    perda = quantidade
-
-    if discord.utils.get(
-        member.roles,
-        id=PROTECTION_ROLE
+    @commands.has_permissions(
+        administrator=True
+    )
+    async def removetrofeu(
+        ctx,
+        quantidade: int,
+        member: discord.Member
     ):
 
-        await ctx.send(
-            "🛡 Proteção ativada."
+        player = get_player(member.id)
+
+        perda = quantidade
+
+        if discord.utils.get(
+            member.roles,
+            id=PROTECTION_ROLE
+        ):
+
+            await ctx.send(
+                "🛡 Proteção ativada."
+            )
+
+            return
+
+        if discord.utils.get(
+            member.roles,
+            id=CURSE_ROLE
+        ):
+
+            perda *= 2
+
+        player["trofeus"] -= perda
+
+        player["partidas"].append({
+
+            "resultado": f"-{perda}🏆",
+            "data": datetime.now().strftime(
+                "%d/%m/%Y"
+            ),
+            "staff": ctx.author.name
+        })
+
+        update_player(
+            member.id,
+            player
         )
 
-        return
-
-    if discord.utils.get(
-        member.roles,
-        id=CURSE_ROLE
-    ):
-
-        perda *= 2
-
-    player["trofeus"] -= perda
-
-    player["partidas"].append({
-
-        "resultado": f"-{perda}🏆",
-        "data": datetime.now().strftime(
-            "%d/%m/%Y"
-        ),
-        "staff": ctx.author.name
-    })
-
-    update_player(
-        member.id,
-        player
-    )
-
-    await update_roles(
-        member,
-        player["trofeus"]
-    )
-
-    embed = discord.Embed(
-        title="❌ TROFÉUS REMOVIDOS",
-        description=(
-            f"{member.mention} "
-            f"perdeu -{perda}🏆"
-        ),
-        color=discord.Color.red()
-    )
-
-    await ctx.send(embed=embed)
-
-    await send_log(
-        ctx.guild,
-        (
-            f"➖ {ctx.author} removeu "
-            f"{perda}🏆 de "
-            f"{member}"
+        await update_roles(
+            member,
+            player["trofeus"]
         )
-    )
+
+        embed = discord.Embed(
+            title="❌ TROFÉUS REMOVIDOS",
+            description=(
+                f"{member.mention} "
+                f"perdeu -{perda}🏆"
+            ),
+            color=discord.Color.red()
+        )
+
+        await ctx.send(embed=embed)
+
+        await send_log(
+            ctx.guild,
+            (
+                f"➖ {ctx.author} removeu "
+                f"{perda}🏆 de "
+                f"{member}"
+            )
+        )
 
     # =========================
     # PARTIDAS
     # =========================
 
     @bot.command()
-async def partidas(
-    ctx,
-    member: discord.Member=None
-):
+    async def partidas(
+        ctx,
+        member: discord.Member=None
+    ):
 
-    if member is None:
-        member = ctx.author
+        if member is None:
+            member = ctx.author
 
-    player = get_player(member.id)
+        player = get_player(member.id)
 
-    partidas = player["partidas"]
+        partidas = player["partidas"]
 
-    embed = discord.Embed(
-        title="📜 Histórico",
-        color=discord.Color.blurple()
-    )
-
-    texto = ""
-
-    for p in partidas[-15:]:
-
-        texto += (
-            f"{p['resultado']} • "
-            f"{p['data']}\n"
+        embed = discord.Embed(
+            title="📜 Histórico",
+            color=discord.Color.blurple()
         )
 
-    if texto == "":
-        texto = "Nenhuma."
+        texto = ""
 
-    embed.description = texto
+        for p in partidas[-15:]:
 
-    await ctx.send(embed=embed)
+            texto += (
+                f"{p['resultado']} • "
+                f"{p['data']}\n"
+            )
+
+        if texto == "":
+            texto = "Nenhuma."
+
+        embed.description = texto
+
+        await ctx.send(embed=embed)
 
     # =========================
     # TOP
@@ -575,13 +575,34 @@ async def partidas(
     @bot.command()
     async def top(ctx):
 
-        players = load_players()
+        conn = connect_db()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            "SELECT * FROM players"
+        )
+
+        rows = cursor.fetchall()
+
+        conn.close()
+
+        ranking = []
+
+        for row in rows:
+
+            ranking.append({
+
+                "user_id": row[0],
+                "trofeus": row[1],
+                "medalhas": row[2]
+
+            })
 
         ranking = sorted(
-            players.items(),
+            ranking,
             key=lambda x: (
-                x[1]["medalhas"],
-                x[1]["trofeus"]
+                x["medalhas"],
+                x["trofeus"]
             ),
             reverse=True
         )
@@ -612,13 +633,12 @@ async def partidas(
         )
 
         y = 140
-
         pos = 1
 
-        for user, data in ranking[:10]:
+        for data in ranking[:10]:
 
             membro = await bot.fetch_user(
-                int(user)
+                int(data["user_id"])
             )
 
             texto = (
@@ -660,20 +680,16 @@ async def partidas(
         member: discord.Member
     ):
 
-        players = load_players()
+        player = get_player(member.id)
 
-        create_player(
-            players,
-            member.id
-        )
-
-        players[
-            str(member.id)
-        ]["medals"].append(
+        player["medals"].append(
             emoji
         )
 
-        save_players(players)
+        update_player(
+            member.id,
+            player
+        )
 
         await ctx.send(
             f"🏅 Medalha adicionada "
@@ -722,9 +738,6 @@ async def partidas(
                     "❌ Resultados diferentes."
                 )
 
-            vencedor = None
-            perdedor = None
-
             if votos[0] == "desafiante":
 
                 vencedor = self.desafiante
@@ -735,30 +748,40 @@ async def partidas(
                 vencedor = self.desafiado
                 perdedor = self.desafiante
 
-            players = load_players()
+            vencedor_data = get_player(
+                vencedor.id
+            )
 
-            players[
-                str(vencedor.id)
-            ]["trofeus"] += self.valor
+            perdedor_data = get_player(
+                perdedor.id
+            )
 
-            players[
-                str(perdedor.id)
-            ]["trofeus"] -= self.valor
+            vencedor_data[
+                "trofeus"
+            ] += self.valor
 
-            save_players(players)
+            perdedor_data[
+                "trofeus"
+            ] -= self.valor
+
+            update_player(
+                vencedor.id,
+                vencedor_data
+            )
+
+            update_player(
+                perdedor.id,
+                perdedor_data
+            )
 
             await update_roles(
                 vencedor,
-                players[
-                    str(vencedor.id)
-                ]["trofeus"]
+                vencedor_data["trofeus"]
             )
 
             await update_roles(
                 perdedor,
-                players[
-                    str(perdedor.id)
-                ]["trofeus"]
+                perdedor_data["trofeus"]
             )
 
             embed = discord.Embed(
@@ -890,477 +913,151 @@ async def partidas(
             self.desafiado = desafiado
             self.valor = valor
 
-@bot.command()
-async def top(ctx):
-
-    conn = connect_db()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-    SELECT user_id, trofeus, medalhas
-    FROM players
-    ORDER BY medalhas DESC, trofeus DESC
-    LIMIT 10
-    """)
-
-    ranking = cursor.fetchall()
-
-    conn.close()
-
-    img = Image.new(
-        "RGB",
-        (900, 700),
-        color=(15,15,15)
-    )
-
-    draw = ImageDraw.Draw(img)
-
-    titulo = ImageFont.truetype(
-        "arial.ttf",
-        40
-    )
-
-    fonte = ImageFont.truetype(
-        "arial.ttf",
-        28
-    )
-
-    draw.text(
-        (250,40),
-        "🏆 TOP RANKED",
-        font=titulo,
-        fill=(255,215,0)
-    )
-
-    y = 140
-    pos = 1
-
-    for user_id, trofeus, medalhas in ranking:
-
-        membro = await bot.fetch_user(
-            int(user_id)
+        @button(
+            label="Aceitar",
+            style=discord.ButtonStyle.green
         )
-
-        texto = (
-            f"#{pos} "
-            f"{membro.name} | "
-            f"{trofeus}🏆 | "
-            f"{medalhas}🎖"
-        )
-
-        draw.text(
-            (70,y),
-            texto,
-            font=fonte,
-            fill=(255,255,255)
-        )
-
-        y += 50
-        pos += 1
-
-    caminho = "leaderboard.png"
-
-    img.save(caminho)
-
-    await ctx.send(
-        file=discord.File(caminho)
-    )
-
-# =========================
-# MEDALHAS
-# =========================
-
-@bot.command()
-@commands.has_permissions(
-    administrator=True
-)
-async def add(
-    ctx,
-    emoji,
-    member: discord.Member
-):
-
-    player = get_player(member.id)
-
-    player["medals"].append(
-        emoji
-    )
-
-    update_player(
-        member.id,
-        player
-    )
-
-    await ctx.send(
-        f"🏅 Medalha adicionada "
-        f"para {member.mention}"
-    )
-
-# =========================
-# AMISTOSO
-# =========================
-
-amistoso_cooldowns = {}
-amistoso_accept = {}
-
-class ResultadoView(View):
-
-    def __init__(
-        self,
-        desafiante,
-        desafiado,
-        valor
-    ):
-
-        super().__init__(timeout=None)
-
-        self.desafiante = desafiante
-        self.desafiado = desafiado
-        self.valor = valor
-
-        self.votos = {}
-
-    async def verificar(
-        self,
-        interaction
-    ):
-
-        if len(self.votos) < 2:
-            return
-
-        votos = list(
-            self.votos.values()
-        )
-
-        if votos[0] != votos[1]:
-
-            return await interaction.channel.send(
-                "❌ Resultados diferentes."
-            )
-
-        vencedor = None
-        perdedor = None
-
-        if votos[0] == "desafiante":
-
-            vencedor = self.desafiante
-            perdedor = self.desafiado
-
-        else:
-
-            vencedor = self.desafiado
-            perdedor = self.desafiante
-
-        vencedor_player = get_player(
-            vencedor.id
-        )
-
-        perdedor_player = get_player(
-            perdedor.id
-        )
-
-        vencedor_player[
-            "trofeus"
-        ] += self.valor
-
-        perdedor_player[
-            "trofeus"
-        ] -= self.valor
-
-        update_player(
-            vencedor.id,
-            vencedor_player
-        )
-
-        update_player(
-            perdedor.id,
-            perdedor_player
-        )
-
-        await update_roles(
-            vencedor,
-            vencedor_player["trofeus"]
-        )
-
-        await update_roles(
-            perdedor,
-            perdedor_player["trofeus"]
-        )
-
-        embed = discord.Embed(
-            title="🏆 AMISTOSO FINALIZADO",
-            description=(
-                f"{vencedor.mention} "
-                f"ganhou +{self.valor}🏆\n\n"
-                f"{perdedor.mention} "
-                f"perdeu -{self.valor}🏆"
-            ),
-            color=discord.Color.green()
-        )
-
-        msg = await interaction.channel.send(
-            embed=embed
-        )
-
-        await asyncio.sleep(86400)
-
-        try:
-            await msg.delete()
-        except:
-            pass
-
-    @button(
-        label="2x0 desafiante",
-        style=discord.ButtonStyle.green
-    )
-    async def r1(
-        self,
-        interaction,
-        button
-    ):
-
-        self.votos[
-            interaction.user.id
-        ] = "desafiante"
-
-        await interaction.response.send_message(
-            "✅ Resultado enviado.",
-            ephemeral=True
-        )
-
-        await self.verificar(
-            interaction
-        )
-
-    @button(
-        label="2x1 desafiante",
-        style=discord.ButtonStyle.green
-    )
-    async def r2(
-        self,
-        interaction,
-        button
-    ):
-
-        self.votos[
-            interaction.user.id
-        ] = "desafiante"
-
-        await interaction.response.send_message(
-            "✅ Resultado enviado.",
-            ephemeral=True
-        )
-
-        await self.verificar(
-            interaction
-        )
-
-    @button(
-        label="2x0 desafiado",
-        style=discord.ButtonStyle.red
-    )
-    async def r3(
-        self,
-        interaction,
-        button
-    ):
-
-        self.votos[
-            interaction.user.id
-        ] = "desafiado"
-
-        await interaction.response.send_message(
-            "✅ Resultado enviado.",
-            ephemeral=True
-        )
-
-        await self.verificar(
-            interaction
-        )
-
-    @button(
-        label="2x1 desafiado",
-        style=discord.ButtonStyle.red
-    )
-    async def r4(
-        self,
-        interaction,
-        button
-    ):
-
-        self.votos[
-            interaction.user.id
-        ] = "desafiado"
-
-        await interaction.response.send_message(
-            "✅ Resultado enviado.",
-            ephemeral=True
-        )
-
-        await self.verificar(
-            interaction
-        )
-
-class AceitarView(View):
-
-    def __init__(
-        self,
-        desafiante,
-        desafiado,
-        valor
-    ):
-
-        super().__init__(timeout=None)
-
-        self.desafiante = desafiante
-        self.desafiado = desafiado
-        self.valor = valor
-
-    @button(
-        label="Aceitar",
-        style=discord.ButtonStyle.green
-    )
-    async def aceitar(
-        self,
-        interaction,
-        button
-    ):
-
-        if interaction.user != self.desafiado:
-            return
-
-        embed = discord.Embed(
-            title="⚔️ AMISTOSO",
-            description=(
-                f"{self.desafiante.mention} "
-                f"🆚 "
-                f"{self.desafiado.mention}"
-            ),
-            color=discord.Color.orange()
-        )
-
-        embed.add_field(
-            name="🏆 Valor",
-            value=f"{self.valor}🏆"
-        )
-
-        await interaction.response.edit_message(
-            embed=embed,
-            view=ResultadoView(
-                self.desafiante,
-                self.desafiado,
-                self.valor
-            )
-        )
-
-    @button(
-        label="Desistir",
-        style=discord.ButtonStyle.red
-    )
-    async def desistir(
-        self,
-        interaction,
-        button
-    ):
-
-        if interaction.user != self.desafiado:
-            return
-
-        await interaction.response.edit_message(
-            content="❌ Amistoso recusado.",
-            embed=None,
-            view=None
-        )
-
-class DesafioView(View):
-
-    def __init__(self):
-
-        super().__init__(timeout=None)
-
-    @button(
-        label="Desafiar",
-        style=discord.ButtonStyle.blurple
-    )
-    async def desafiar(
-        self,
-        interaction,
-        button
-    ):
-
-        class Modal(
-            discord.ui.Modal,
-            title="⚔️ Desafio"
+        async def aceitar(
+            self,
+            interaction,
+            button
         ):
 
-            player = discord.ui.TextInput(
-                label="ID do player"
+            if interaction.user != self.desafiado:
+                return
+
+            embed = discord.Embed(
+                title="⚔️ AMISTOSO",
+                description=(
+                    f"{self.desafiante.mention} "
+                    f"🆚 "
+                    f"{self.desafiado.mention}"
+                ),
+                color=discord.Color.orange()
             )
 
-            valor = discord.ui.TextInput(
-                label="Valor 10-100"
+            embed.add_field(
+                name="🏆 Valor",
+                value=f"{self.valor}🏆"
             )
 
-            async def on_submit(
-                self,
-                interaction2
+            await interaction.response.edit_message(
+                embed=embed,
+                view=ResultadoView(
+                    self.desafiante,
+                    self.desafiado,
+                    self.valor
+                )
+            )
+
+        @button(
+            label="Desistir",
+            style=discord.ButtonStyle.red
+        )
+        async def desistir(
+            self,
+            interaction,
+            button
+        ):
+
+            if interaction.user != self.desafiado:
+                return
+
+            await interaction.response.edit_message(
+                content="❌ Amistoso recusado.",
+                embed=None,
+                view=None
+            )
+
+    class DesafioView(View):
+
+        def __init__(self):
+
+            super().__init__(timeout=None)
+
+        @button(
+            label="Desafiar",
+            style=discord.ButtonStyle.blurple
+        )
+        async def desafiar(
+            self,
+            interaction,
+            button
+        ):
+
+            class Modal(
+                discord.ui.Modal,
+                title="⚔️ Desafio"
             ):
 
-                membro = interaction.guild.get_member(
-                    int(self.player.value)
+                player = discord.ui.TextInput(
+                    label="ID do player"
                 )
 
-                valor = int(
-                    self.valor.value
+                valor = discord.ui.TextInput(
+                    label="Valor 10-100"
                 )
 
-                embed = discord.Embed(
-                    title="⚔️ PROPOSTA",
-                    description=(
-                        f"{interaction.user.mention} "
-                        f"desafiou "
-                        f"{membro.mention}"
-                    ),
-                    color=discord.Color.red()
-                )
+                async def on_submit(
+                    self,
+                    interaction2
+                ):
 
-                embed.add_field(
-                    name="🏆 Valor",
-                    value=f"{valor}🏆"
-                )
-
-                await interaction2.response.send_message(
-                    embed=embed,
-                    view=AceitarView(
-                        interaction.user,
-                        membro,
-                        valor
+                    membro = interaction.guild.get_member(
+                        int(self.player.value)
                     )
-                )
 
-        await interaction.response.send_modal(
-            Modal()
+                    valor = int(
+                        self.valor.value
+                    )
+
+                    embed = discord.Embed(
+                        title="⚔️ PROPOSTA",
+                        description=(
+                            f"{interaction.user.mention} "
+                            f"desafiou "
+                            f"{membro.mention}"
+                        ),
+                        color=discord.Color.red()
+                    )
+
+                    embed.add_field(
+                        name="🏆 Valor",
+                        value=f"{valor}🏆"
+                    )
+
+                    await interaction2.response.send_message(
+                        embed=embed,
+                        view=AceitarView(
+                            interaction.user,
+                            membro,
+                            valor
+                        )
+                    )
+
+            await interaction.response.send_modal(
+                Modal()
+            )
+
+    @bot.command()
+    async def amistoso(ctx):
+
+        if ctx.channel.id != AMISTOSO_CHANNEL:
+
+            return await ctx.send(
+                "❌ Canal incorreto."
+            )
+
+        embed = discord.Embed(
+            title="⚔️ SISTEMA AMISTOSO",
+            description=(
+                "Clique abaixo "
+                "para desafiar."
+            ),
+            color=discord.Color.blurple()
         )
 
-@bot.command()
-async def amistoso(ctx):
-
-    if ctx.channel.id != AMISTOSO_CHANNEL:
-
-        return await ctx.send(
-            "❌ Canal incorreto."
-        )
-
-    embed = discord.Embed(
-        title="⚔️ SISTEMA AMISTOSO",
-        description=(
-            "Clique abaixo "
-            "para desafiar."
-        ),
-        color=discord.Color.blurple()
+        await ctx.send(
+            embed=embed,
+            view=DesafioView()
     )
-
-    await ctx.send(
-        embed=embed,
-        view=DesafioView()
-)
