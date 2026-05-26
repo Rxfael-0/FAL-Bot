@@ -540,9 +540,8 @@ def setup_ranked(bot):
                 f"{perda}🏆 de "
                 f"{member}"
             )
-    )
-
-    # =========================
+)
+        # =========================
     # PARTIDAS
     # =========================
 
@@ -553,6 +552,7 @@ def setup_ranked(bot):
     ):
 
         if member is None:
+
             member = ctx.author
 
         player = get_player(member.id)
@@ -574,6 +574,7 @@ def setup_ranked(bot):
             )
 
         if texto == "":
+
             texto = "Nenhuma."
 
         embed.description = texto
@@ -590,34 +591,15 @@ def setup_ranked(bot):
         conn = connect_db()
         cursor = conn.cursor()
 
-        cursor.execute(
-            "SELECT * FROM players"
-        )
+        cursor.execute("""
+        SELECT user_id, trofeus, medalhas
+        FROM players
+        ORDER BY medalhas DESC, trofeus DESC
+        """)
 
-        rows = cursor.fetchall()
+        ranking = cursor.fetchall()
 
         conn.close()
-
-        ranking = []
-
-        for row in rows:
-
-            ranking.append({
-
-                "user_id": row[0],
-                "trofeus": row[1],
-                "medalhas": row[2]
-
-            })
-
-        ranking = sorted(
-            ranking,
-            key=lambda x: (
-                x["medalhas"],
-                x["trofeus"]
-            ),
-            reverse=True
-        )
 
         img = Image.new(
             "RGB",
@@ -647,17 +629,17 @@ def setup_ranked(bot):
         y = 140
         pos = 1
 
-        for data in ranking[:10]:
+        for user_id, trofeus, medalhas in ranking[:10]:
 
             membro = await bot.fetch_user(
-                int(data["user_id"])
+                int(user_id)
             )
 
             texto = (
                 f"#{pos} "
                 f"{membro.name} | "
-                f"{data['trofeus']}🏆 | "
-                f"{data['medalhas']}🎖"
+                f"{trofeus}🏆 | "
+                f"{medalhas}🎖"
             )
 
             draw.text(
@@ -712,9 +694,6 @@ def setup_ranked(bot):
     # AMISTOSO
     # =========================
 
-    amistoso_cooldowns = {}
-    amistoso_accept = {}
-
     class ResultadoView(View):
 
         def __init__(
@@ -738,6 +717,7 @@ def setup_ranked(bot):
         ):
 
             if len(self.votos) < 2:
+
                 return
 
             votos = list(
@@ -768,13 +748,8 @@ def setup_ranked(bot):
                 perdedor.id
             )
 
-            vencedor_data[
-                "trofeus"
-            ] += self.valor
-
-            perdedor_data[
-                "trofeus"
-            ] -= self.valor
+            vencedor_data["trofeus"] += self.valor
+            perdedor_data["trofeus"] -= self.valor
 
             update_player(
                 vencedor.id,
@@ -801,22 +776,16 @@ def setup_ranked(bot):
                 description=(
                     f"{vencedor.mention} "
                     f"ganhou +{self.valor}🏆\n\n"
+
                     f"{perdedor.mention} "
                     f"perdeu -{self.valor}🏆"
                 ),
                 color=discord.Color.green()
             )
 
-            msg = await interaction.channel.send(
+            await interaction.channel.send(
                 embed=embed
             )
-
-            await asyncio.sleep(86400)
-
-            try:
-                await msg.delete()
-            except:
-                pass
 
         @button(
             label="2x0 desafiante",
@@ -936,6 +905,7 @@ def setup_ranked(bot):
         ):
 
             if interaction.user != self.desafiado:
+
                 return
 
             embed = discord.Embed(
@@ -973,6 +943,7 @@ def setup_ranked(bot):
         ):
 
             if interaction.user != self.desafiado:
+
                 return
 
             await interaction.response.edit_message(
@@ -1072,4 +1043,4 @@ def setup_ranked(bot):
         await ctx.send(
             embed=embed,
             view=DesafioView()
-    )
+)
