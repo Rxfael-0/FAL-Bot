@@ -75,7 +75,7 @@ setup_tournament(bot)
 # RUN
 # =========================
 
-import sqlite
+import database_setup
 
 print("SQLITE OK")
 
