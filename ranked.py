@@ -371,7 +371,7 @@ def setup_ranked(bot):
 
         embed.add_field(
             name="🏅 Coleção",
-            value=medals
+            value=medals,
             inline=False
        )
 
