@@ -75,6 +75,10 @@ setup_tournament(bot)
 # RUN
 # =========================
 
+import sqlite
+
+print("SQLITE OK")
+
 bot.run(
     os.getenv("TOKEN")
 )
