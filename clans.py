@@ -1,3 +1,4 @@
+```python
 import discord
 from discord.ext import commands, tasks
 from discord.ui import View, button
@@ -5,7 +6,13 @@ from datetime import datetime
 import sqlite3
 import json
 
-conn = sqlite3.connect("database/database.db")
+DATABASE = "database/database.db"
+
+# =========================
+# SQLITE
+# =========================
+
+conn = sqlite3.connect(DATABASE)
 cursor = conn.cursor()
 
 cursor.execute("""
@@ -17,24 +24,6 @@ CREATE TABLE IF NOT EXISTS clans (
 
 conn.commit()
 
-INFO_CHANNEL = 1504652700921626716
-CREATE_CHANNEL = 1504654261664092210
-LIST_CHANNEL = 1504655151980609576
-REQUEST_CHANNEL = 1504655236839768215
-WAR_CHANNEL = 1504655296675577996
-RESULT_CHANNEL = 1504655387415023656
-INACTIVE_CHANNEL = 1504655449796902912
-
-CLAN_CATEGORY = 1504651417229463613
-
-ANALISTA = 1399531186472226898
-LEADER_ROLE = 1399181565162033243
-
-MAX_MEMBERS = 5
-
-# =========================
-# SQLITE
-# =========================
 
 def load_clans():
 
@@ -47,10 +36,10 @@ def load_clans():
     data = {}
 
     for name, clan_data in rows:
-
         data[name] = json.loads(clan_data)
 
     return data
+
 
 def save_clans(data):
 
@@ -72,7 +61,31 @@ def save_clans(data):
 
 
 # =========================
-# UPDATE PANEL
+# CANAIS
+# =========================
+
+INFO_CHANNEL = 1504652700921626716
+CREATE_CHANNEL = 1504654261664092210
+LIST_CHANNEL = 1504655151980609576
+REQUEST_CHANNEL = 1504655236839768215
+WAR_CHANNEL = 1504655296675577996
+RESULT_CHANNEL = 1504655387415023656
+INACTIVE_CHANNEL = 1504655449796902912
+
+CLAN_CATEGORY = 1504651417229463613
+
+# =========================
+# CARGOS
+# =========================
+
+ANALISTA = 1399531186472226898
+LEADER_ROLE = 1399181565162033243
+
+MAX_MEMBERS = 5
+
+
+# =========================
+# ATUALIZAR PAINEL
 # =========================
 
 async def update_clan_panel(
@@ -84,7 +97,6 @@ async def update_clan_panel(
     data = load_clans()
 
     if clan_name not in data:
-
         return
 
     clan = data[clan_name]
@@ -94,7 +106,6 @@ async def update_clan_panel(
     )
 
     if not channel:
-
         return
 
     try:
@@ -103,7 +114,7 @@ async def update_clan_panel(
             clan["panel_message"]
         )
 
-    except:
+    except Exception:
 
         return
 
@@ -122,21 +133,17 @@ async def update_clan_panel(
             )
 
     embed = discord.Embed(
-
         title=f"🏰 {clan_name}",
         color=discord.Color.red()
     )
 
     embed.add_field(
-
         name="👑 Líder",
         value=f"<@{clan['leader']}>"
     )
 
     embed.add_field(
-
         name="👑 Co-líder",
-
         value=(
             f"<@{clan['coleader']}>"
             if clan["coleader"]
@@ -145,11 +152,8 @@ async def update_clan_panel(
     )
 
     embed.add_field(
-
         name="👥 Membros",
-
         value=membros if membros else "Nenhum",
-
         inline=False
     )
 
@@ -189,6 +193,7 @@ async def update_clan_panel(
         embed=embed
     )
 
+
 # =========================
 # REQUEST VIEW
 # =========================
@@ -212,11 +217,18 @@ class RequestView(View):
     )
     async def aceitar(
         self,
-        interaction,
-        button
+        interaction: discord.Interaction,
+        button: discord.ui.Button
     ):
 
         data = load_clans()
+
+        if self.clan_name not in data:
+
+            return await interaction.response.send_message(
+                "❌ Clã não existe.",
+                ephemeral=True
+            )
 
         clan = data[self.clan_name]
 
@@ -231,18 +243,14 @@ class RequestView(View):
         ]:
 
             return await interaction.response.send_message(
-
                 "❌ Apenas líder/co-líder.",
-
                 ephemeral=True
             )
 
         if len(clan["members"]) >= MAX_MEMBERS:
 
             return await interaction.response.send_message(
-
                 "❌ Clã lotado.",
-
                 ephemeral=True
             )
 
@@ -251,9 +259,7 @@ class RequestView(View):
             if str(self.user_id) in c["members"]:
 
                 return await interaction.response.send_message(
-
                     "❌ Usuário já está em um clã.",
-
                     ephemeral=True
                 )
 
@@ -271,25 +277,31 @@ class RequestView(View):
             self.user_id
         )
 
+        if not membro:
+
+            return await interaction.response.send_message(
+                "❌ Usuário não encontrado no servidor.",
+                ephemeral=True
+            )
+
         role = interaction.guild.get_role(
             clan["role_id"]
         )
 
-        await membro.add_roles(role)
+        if role:
+
+            await membro.add_roles(role)
 
         await update_clan_panel(
-
             interaction.client,
             interaction.guild,
             self.clan_name
         )
 
         await interaction.response.edit_message(
-
             content=(
                 f"✅ {membro.mention} entrou no clã."
             ),
-
             embed=None,
             view=None
         )
@@ -300,17 +312,16 @@ class RequestView(View):
     )
     async def recusar(
         self,
-        interaction,
-        button
+        interaction: discord.Interaction,
+        button: discord.ui.Button
     ):
 
         await interaction.response.edit_message(
-
             content="❌ Solicitação recusada.",
-
             embed=None,
             view=None
         )
+
 
 # =========================
 # WAR VIEW
@@ -335,27 +346,29 @@ class WarView(View):
     )
     async def aceitar(
         self,
-        interaction,
-        button
+        interaction: discord.Interaction,
+        button: discord.ui.Button
     ):
 
         data = load_clans()
 
+        if self.clan1 not in data or self.clan2 not in data:
+
+            return await interaction.response.send_message(
+                "❌ Um dos clãs não existe mais.",
+                ephemeral=True
+            )
+
         embed = discord.Embed(
-
             title="⚔️ CLANWAR ACEITA",
-
             description=(
                 f"{self.clan1} 🆚 {self.clan2}"
             ),
-
             color=discord.Color.orange()
         )
 
         await interaction.response.edit_message(
-
             embed=embed,
-
             view=RegistrarResultadoView(
                 self.clan1,
                 self.clan2
@@ -368,26 +381,27 @@ class WarView(View):
     )
     async def desistir(
         self,
-        interaction,
-        button
+        interaction: discord.Interaction,
+        button: discord.ui.Button
     ):
 
         data = load_clans()
 
-        data[self.clan2][
-            "surrenders"
-        ] += 1
+        if self.clan2 in data:
 
-        save_clans(data)
+            data[self.clan2]["surrenders"] += 1
+            save_clans(data)
 
         await interaction.response.edit_message(
-
             content="❌ Clanwar recusada.",
-
             embed=None,
-
             view=None
-    )
+        )
+
+
+# =========================
+# REGISTRAR RESULTADO
+# =========================
 
 class RegistrarResultadoView(View):
 
@@ -408,17 +422,17 @@ class RegistrarResultadoView(View):
     )
     async def registrar(
         self,
-        interaction,
-        button
+        interaction: discord.Interaction,
+        button: discord.ui.Button
     ):
 
         await interaction.response.edit_message(
-
             view=ResultadoView(
                 self.clan1,
                 self.clan2
             )
         )
+
 
 # =========================
 # RESULTADO VIEW
@@ -446,34 +460,46 @@ class ResultadoView(View):
 
         data = load_clans()
 
+        if vencedor not in data or perdedor not in data:
+
+            return await interaction.response.send_message(
+                "❌ Um dos clãs não existe mais.",
+                ephemeral=True
+            )
+
         data[vencedor]["wins"] += 1
         data[perdedor]["losses"] += 1
 
         historico = (
-
             f"{datetime.now().strftime('%d/%m/%Y')} "
             f"• {vencedor} venceu {perdedor}"
         )
 
-        data[vencedor][
-            "history"
-        ].append(historico)
+        data[vencedor]["history"].append(
+            historico
+        )
 
-        data[perdedor][
-            "history"
-        ].append(historico)
+        data[perdedor]["history"].append(
+            historico
+        )
+
+        data[vencedor]["last_activity"] = datetime.now().strftime(
+            "%d/%m/%Y"
+        )
+
+        data[perdedor]["last_activity"] = datetime.now().strftime(
+            "%d/%m/%Y"
+        )
 
         save_clans(data)
 
         await update_clan_panel(
-
             interaction.client,
             interaction.guild,
             vencedor
         )
 
         await update_clan_panel(
-
             interaction.client,
             interaction.guild,
             perdedor
@@ -484,22 +510,19 @@ class ResultadoView(View):
         )
 
         embed = discord.Embed(
-
             title="🏆 RESULTADO",
-
             description=historico,
-
             color=discord.Color.gold()
         )
 
-        await canal.send(
-            embed=embed
-        )
+        if canal:
+
+            await canal.send(
+                embed=embed
+            )
 
         await interaction.response.edit_message(
-
             content="✅ Resultado registrado.",
-
             embed=None,
             view=None
         )
@@ -510,8 +533,8 @@ class ResultadoView(View):
     )
     async def r1(
         self,
-        interaction,
-        button
+        interaction: discord.Interaction,
+        button: discord.ui.Button
     ):
 
         if not discord.utils.get(
@@ -519,7 +542,10 @@ class ResultadoView(View):
             id=ANALISTA
         ):
 
-            return
+            return await interaction.response.send_message(
+                "❌ Apenas analistas podem registrar.",
+                ephemeral=True
+            )
 
         await self.finalizar(
             interaction,
@@ -533,8 +559,8 @@ class ResultadoView(View):
     )
     async def r2(
         self,
-        interaction,
-        button
+        interaction: discord.Interaction,
+        button: discord.ui.Button
     ):
 
         if not discord.utils.get(
@@ -542,7 +568,10 @@ class ResultadoView(View):
             id=ANALISTA
         ):
 
-            return
+            return await interaction.response.send_message(
+                "❌ Apenas analistas podem registrar.",
+                ephemeral=True
+            )
 
         await self.finalizar(
             interaction,
@@ -556,8 +585,8 @@ class ResultadoView(View):
     )
     async def r3(
         self,
-        interaction,
-        button
+        interaction: discord.Interaction,
+        button: discord.ui.Button
     ):
 
         if not discord.utils.get(
@@ -565,7 +594,10 @@ class ResultadoView(View):
             id=ANALISTA
         ):
 
-            return
+            return await interaction.response.send_message(
+                "❌ Apenas analistas podem registrar.",
+                ephemeral=True
+            )
 
         await self.finalizar(
             interaction,
@@ -579,8 +611,8 @@ class ResultadoView(View):
     )
     async def r4(
         self,
-        interaction,
-        button
+        interaction: discord.Interaction,
+        button: discord.ui.Button
     ):
 
         if not discord.utils.get(
@@ -588,13 +620,17 @@ class ResultadoView(View):
             id=ANALISTA
         ):
 
-            return
+            return await interaction.response.send_message(
+                "❌ Apenas analistas podem registrar.",
+                ephemeral=True
+            )
 
         await self.finalizar(
             interaction,
             self.clan2,
             self.clan1
         )
+
 
 # =========================
 # SETUP
@@ -664,53 +700,65 @@ def setup_clans(bot):
         )
 
         canal = await ctx.guild.create_text_channel(
-
-    name=f"🏰・{nome.lower()}",
-
-    category=categoria,
-
-    overwrites=overwrites
+            name=f"🏰・{nome.lower()}",
+            category=categoria,
+            overwrites=overwrites
         )
 
         data[nome] = {
 
             "leader": str(ctx.author.id),
             "coleader": None,
-            "members": [str(ctx.author.id)],
+
+            "members": [
+                str(ctx.author.id)
+            ],
+
             "wins": 0,
             "losses": 0,
             "surrenders": 0,
+
             "history": [],
+
             "status": "🟢 Ativo",
+
             "last_activity": datetime.now().strftime(
                 "%d/%m/%Y"
             ),
+
             "role_id": role.id,
             "channel_id": canal.id,
+
             "panel_channel": LIST_CHANNEL,
             "panel_message": None,
+
             "logo": None
         }
 
         save_clans(data)
 
-        await ctx.author.add_roles(role)
+        await ctx.author.add_roles(
+            role
+        )
 
         embed = discord.Embed(
-
             title=f"🏰 {nome}",
-
             description=(
                 f"Clã criado por "
                 f"{ctx.author.mention}"
             ),
-
             color=discord.Color.red()
         )
 
         canal_lista = bot.get_channel(
             LIST_CHANNEL
         )
+
+        if not canal_lista:
+
+            return await ctx.send(
+                "⚠️ Clã criado, mas o canal de lista não foi encontrado."
+            )
 
         msg = await canal_lista.send(
             embed=embed
@@ -814,6 +862,10 @@ def setup_clans(bot):
                     f"✅ {member.mention} virou co-líder."
                 )
 
+        await ctx.send(
+            "❌ Você não é líder de nenhum clã."
+        )
+
     @bot.command()
     async def solicitar(
         ctx,
@@ -822,7 +874,16 @@ def setup_clans(bot):
 
         data = load_clans()
 
-        if clan_name not in data:
+        clan_real = None
+
+        for nome in data:
+
+            if nome.lower() == clan_name.lower():
+
+                clan_real = nome
+                break
+
+        if not clan_real:
 
             return await ctx.send(
                 "❌ Clã não encontrado."
@@ -837,13 +898,11 @@ def setup_clans(bot):
                 )
 
         embed = discord.Embed(
-
             title="📩 Solicitação",
-
             description=(
-                f"{ctx.author.mention} quer entrar em {clan_name}"
+                f"{ctx.author.mention} "
+                f"quer entrar em {clan_real}"
             ),
-
             color=discord.Color.blurple()
         )
 
@@ -851,19 +910,22 @@ def setup_clans(bot):
             REQUEST_CHANNEL
         )
 
+        if not canal:
+
+            return await ctx.send(
+                "❌ Canal de solicitações não encontrado."
+            )
+
         await canal.send(
-
-    content=(
-        f"<@&{data[clan_name]['role_id']}>"
-    ),
-
-    embed=embed,
-
-    view=RequestView(
-        clan_name,
-        ctx.author.id
-    )
-                )
+            content=(
+                f"<@&{data[clan_real]['role_id']}>"
+            ),
+            embed=embed,
+            view=RequestView(
+                clan_real,
+                ctx.author.id
+            )
+        )
 
         await ctx.send(
             "✅ Solicitação enviada."
@@ -884,6 +946,7 @@ def setup_clans(bot):
             if str(ctx.author.id) in clan["members"]:
 
                 meu_cla = nome
+                break
 
         if not meu_cla:
 
@@ -891,22 +954,34 @@ def setup_clans(bot):
                 "❌ Você não possui clã."
             )
 
-        if clan_name not in data:
+        clan_real = None
+
+        for nome in data:
+
+            if nome.lower() == clan_name.lower():
+
+                clan_real = nome
+                break
+
+        if not clan_real:
 
             return await ctx.send(
                 "❌ Clã não existe."
             )
 
+        if meu_cla == clan_real:
+
+            return await ctx.send(
+                "❌ Você não pode desafiar seu próprio clã."
+            )
+
         embed = discord.Embed(
-
             title="⚔️ CLANWAR",
-
             description=(
                 f"<@&{data[meu_cla]['role_id']}> "
                 f"desafiou "
-                f"<@&{data[clan_name]['role_id']}>"
+                f"<@&{data[clan_real]['role_id']}>"
             ),
-
             color=discord.Color.red()
         )
 
@@ -914,14 +989,22 @@ def setup_clans(bot):
             WAR_CHANNEL
         )
 
+        if not canal:
+
+            return await ctx.send(
+                "❌ Canal de ClanWar não encontrado."
+            )
+
         await canal.send(
-
             embed=embed,
-
             view=WarView(
                 meu_cla,
-                clan_name
+                clan_real
             )
+        )
+
+        await ctx.send(
+            "✅ Desafio enviado."
         )
 
     @bot.command()
@@ -930,18 +1013,13 @@ def setup_clans(bot):
         data = load_clans()
 
         ranking = sorted(
-
             data.items(),
-
             key=lambda x: x[1]["wins"],
-
             reverse=True
         )
 
         embed = discord.Embed(
-
             title="🏆 TOP CLANS",
-
             color=discord.Color.gold()
         )
 
@@ -952,13 +1030,15 @@ def setup_clans(bot):
         for nome, clan in ranking[:10]:
 
             texto += (
-
                 f"#{pos} • {nome}\n"
-
                 f"🏆 {clan['wins']} vitórias\n\n"
             )
 
             pos += 1
+
+        if texto == "":
+
+            texto = "❌ Nenhum clã criado."
 
         embed.description = texto
 
@@ -966,22 +1046,41 @@ def setup_clans(bot):
             embed=embed
         )
 
+
+# =========================
+# CLÃS INATIVOS
+# =========================
+
 @tasks.loop(hours=24)
 async def check_inactive():
 
     data = load_clans()
 
+    alterado = False
+
     for nome, clan in data.items():
 
-        ultima = datetime.strptime(
-            clan["last_activity"],
-            "%d/%m/%Y"
-        )
+        try:
+
+            ultima = datetime.strptime(
+                clan["last_activity"],
+                "%d/%m/%Y"
+            )
+
+        except (KeyError, ValueError):
+
+            continue
 
         if (
             datetime.now() - ultima
         ).days >= 30:
 
-            clan["status"] = "💤 Inativo"
+            if clan["status"] != "💤 Inativo":
 
-            save_clans(data)
+                clan["status"] = "💤 Inativo"
+                alterado = True
+
+    if alterado:
+
+        save_clans(data)
+```
