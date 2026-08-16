@@ -2,7 +2,13 @@ import discord
 from discord import app_commands
 import sqlite3
 
+
 DATABASE = "database/database.db"
+
+
+# =========================
+# CARGOS
+# =========================
 
 VIP = 1460867416081825904
 MEGAVIP = 1460867926948057202
@@ -62,7 +68,10 @@ def get_coins(uid):
 
     conn.close()
 
-    return result[0] if result else 0
+    if not result:
+        return 0
+
+    return result[0]
 
 
 def add_coins(uid, quantidade):
@@ -75,6 +84,26 @@ def add_coins(uid, quantidade):
     cursor.execute("""
     UPDATE players
     SET coins = coins + ?
+    WHERE user_id = ?
+    """, (
+        quantidade,
+        int(uid)
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+def remove_coins(uid, quantidade):
+
+    create_player(uid)
+
+    conn = connect_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    UPDATE players
+    SET coins = MAX(0, coins - ?)
     WHERE user_id = ?
     """, (
         quantidade,
@@ -110,9 +139,7 @@ def setup_economy(bot):
         if membro is None:
             membro = interaction.user
 
-        coins = get_coins(
-            membro.id
-        )
+        coins = get_coins(membro.id)
 
         embed = discord.Embed(
             title="🪙 Coins",
@@ -125,6 +152,10 @@ def setup_economy(bot):
 
         embed.set_thumbnail(
             url=membro.display_avatar.url
+        )
+
+        embed.set_footer(
+            text="FAL • Economy"
         )
 
         await interaction.response.send_message(
@@ -141,17 +172,24 @@ def setup_economy(bot):
         description="Adiciona coins a um jogador."
     )
     @app_commands.describe(
-        quantidade="Quantidade de coins.",
-        membro="Jogador que receberá as coins."
+        membro="Jogador que receberá as coins.",
+        quantidade="Quantidade de coins."
     )
-    @app_commands.checks.has_permissions(
+    @app_commands.default_permissions(
         administrator=True
     )
     async def addcoin(
         interaction: discord.Interaction,
-        quantidade: int,
-        membro: discord.Member
+        membro: discord.Member,
+        quantidade: int
     ):
+
+        if not interaction.user.guild_permissions.administrator:
+
+            return await interaction.response.send_message(
+                "❌ Você precisa ser administrador para usar este comando.",
+                ephemeral=True
+            )
 
         if quantidade <= 0:
 
@@ -175,6 +213,171 @@ def setup_economy(bot):
                 f"{membro.mention} recebeu "
                 f"**+{quantidade}🪙**\n\n"
                 f"💰 Novo saldo: **{novo_saldo}🪙**"
+            ),
+            color=discord.Color.green()
+        )
+
+        embed.set_footer(
+            text=f"Adicionado por {interaction.user.display_name}"
+        )
+
+        await interaction.response.send_message(
+            embed=embed
+        )
+
+
+    # =========================
+    # REMOVECOIN
+    # =========================
+
+    @bot.tree.command(
+        name="removecoin",
+        description="Remove coins de um jogador."
+    )
+    @app_commands.describe(
+        membro="Jogador que perderá as coins.",
+        quantidade="Quantidade de coins."
+    )
+    @app_commands.default_permissions(
+        administrator=True
+    )
+    async def removecoin(
+        interaction: discord.Interaction,
+        membro: discord.Member,
+        quantidade: int
+    ):
+
+        if not interaction.user.guild_permissions.administrator:
+
+            return await interaction.response.send_message(
+                "❌ Você precisa ser administrador para usar este comando.",
+                ephemeral=True
+            )
+
+        if quantidade <= 0:
+
+            return await interaction.response.send_message(
+                "❌ A quantidade precisa ser maior que 0.",
+                ephemeral=True
+            )
+
+        saldo_atual = get_coins(
+            membro.id
+        )
+
+        if saldo_atual <= 0:
+
+            return await interaction.response.send_message(
+                f"❌ {membro.mention} não possui coins.",
+                ephemeral=True
+            )
+
+        quantidade_real = min(
+            quantidade,
+            saldo_atual
+        )
+
+        remove_coins(
+            membro.id,
+            quantidade_real
+        )
+
+        novo_saldo = get_coins(
+            membro.id
+        )
+
+        embed = discord.Embed(
+            title="🪙 Coins removidas",
+            description=(
+                f"{membro.mention} perdeu "
+                f"**-{quantidade_real}🪙**\n\n"
+                f"💰 Novo saldo: **{novo_saldo}🪙**"
+            ),
+            color=discord.Color.red()
+        )
+
+        embed.set_footer(
+            text=f"Removido por {interaction.user.display_name}"
+        )
+
+        await interaction.response.send_message(
+            embed=embed
+        )
+
+
+    # =========================
+    # PAY
+    # =========================
+
+    @bot.tree.command(
+        name="pay",
+        description="Envie coins para outro jogador."
+    )
+    @app_commands.describe(
+        membro="Jogador que receberá as coins.",
+        quantidade="Quantidade de coins."
+    )
+    async def pay(
+        interaction: discord.Interaction,
+        membro: discord.Member,
+        quantidade: int
+    ):
+
+        if membro.id == interaction.user.id:
+
+            return await interaction.response.send_message(
+                "❌ Você não pode enviar coins para si mesmo.",
+                ephemeral=True
+            )
+
+        if membro.bot:
+
+            return await interaction.response.send_message(
+                "❌ Você não pode enviar coins para um bot.",
+                ephemeral=True
+            )
+
+        if quantidade <= 0:
+
+            return await interaction.response.send_message(
+                "❌ A quantidade precisa ser maior que 0.",
+                ephemeral=True
+            )
+
+        saldo = get_coins(
+            interaction.user.id
+        )
+
+        if saldo < quantidade:
+
+            return await interaction.response.send_message(
+                (
+                    "❌ Você não possui coins suficientes.\n\n"
+                    f"💰 Seu saldo: **{saldo}🪙**"
+                ),
+                ephemeral=True
+            )
+
+        remove_coins(
+            interaction.user.id,
+            quantidade
+        )
+
+        add_coins(
+            membro.id,
+            quantidade
+        )
+
+        novo_saldo = get_coins(
+            interaction.user.id
+        )
+
+        embed = discord.Embed(
+            title="💸 Transferência realizada",
+            description=(
+                f"📤 {interaction.user.mention} enviou "
+                f"**{quantidade}🪙** para {membro.mention}.\n\n"
+                f"💰 Seu novo saldo: **{novo_saldo}🪙**"
             ),
             color=discord.Color.green()
         )
@@ -244,12 +447,19 @@ def setup_economy(bot):
         name="mensal",
         description="Entrega as coins mensais para VIP e MEGAVIP."
     )
-    @app_commands.checks.has_permissions(
+    @app_commands.default_permissions(
         administrator=True
     )
     async def mensal(
         interaction: discord.Interaction
     ):
+
+        if not interaction.user.guild_permissions.administrator:
+
+            return await interaction.response.send_message(
+                "❌ Você precisa ser administrador para usar este comando.",
+                ephemeral=True
+            )
 
         if interaction.guild is None:
 
@@ -263,7 +473,10 @@ def setup_economy(bot):
 
         for member in interaction.guild.members:
 
+            # =========================
             # MEGAVIP
+            # =========================
+
             if discord.utils.get(
                 member.roles,
                 id=MEGAVIP
@@ -276,7 +489,10 @@ def setup_economy(bot):
 
                 entregues_megavip += 1
 
+            # =========================
             # VIP
+            # =========================
+
             elif discord.utils.get(
                 member.roles,
                 id=VIP
@@ -299,39 +515,10 @@ def setup_economy(bot):
             color=discord.Color.green()
         )
 
+        embed.set_footer(
+            text="FAL • Economy"
+        )
+
         await interaction.response.send_message(
             embed=embed
         )
-
-
-# =========================
-# ERROS DE PERMISSÃO
-# =========================
-
-async def economy_error(
-    interaction: discord.Interaction,
-    error
-):
-
-    if isinstance(
-        error,
-        app_commands.errors.MissingPermissions
-    ):
-
-        if interaction.response.is_done():
-
-            await interaction.followup.send(
-                "❌ Você precisa ser administrador para usar este comando.",
-                ephemeral=True
-            )
-
-        else:
-
-            await interaction.response.send_message(
-                "❌ Você precisa ser administrador para usar este comando.",
-                ephemeral=True
-            )
-
-    else:
-
-        raise error
