@@ -1,20 +1,42 @@
 import sqlite3
 import os
 
-# =========================
-# DATABASE
-# =========================
 
-os.makedirs("database", exist_ok=True)
+# ============================================================
+# CONFIGURAÇÃO
+# ============================================================
 
-DATABASE = "database/database.db"
+DATABASE_FOLDER = "database"
+DATABASE = os.path.join(
+    DATABASE_FOLDER,
+    "database.db"
+)
 
-conn = sqlite3.connect(DATABASE)
+
+# ============================================================
+# CRIAR PASTA
+# ============================================================
+
+os.makedirs(
+    DATABASE_FOLDER,
+    exist_ok=True
+)
+
+
+# ============================================================
+# CONEXÃO
+# ============================================================
+
+conn = sqlite3.connect(
+    DATABASE
+)
+
 cursor = conn.cursor()
 
-# =========================
+
+# ============================================================
 # PLAYERS
-# =========================
+# ============================================================
 
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS players (
@@ -38,56 +60,94 @@ CREATE TABLE IF NOT EXISTS players (
 )
 """)
 
-# =========================
+
+# ============================================================
 # CLANS
-# =========================
+# ============================================================
 
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS clans (
 
     name TEXT PRIMARY KEY,
-    data TEXT
+
+    data TEXT NOT NULL
 
 )
 """)
 
-# =========================
+
+# ============================================================
 # HALL DA FAMA
-# =========================
+# ============================================================
 
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS hall (
 
     id TEXT PRIMARY KEY,
-    data TEXT
+
+    data TEXT NOT NULL
 
 )
 """)
 
-# =========================
+
+# ============================================================
 # TOURNAMENT
-# =========================
+# ============================================================
 
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS tournament (
 
-    user_id INTEGER PRIMARY KEY,
+    id INTEGER PRIMARY KEY CHECK (id = 1),
 
-    tipo TEXT,
-    nome TEXT,
-    roblox TEXT,
-    convidado TEXT,
+    active INTEGER DEFAULT 0,
 
-    validado INTEGER DEFAULT 0
+    name TEXT DEFAULT '',
+
+    max_players INTEGER DEFAULT 32,
+
+    players TEXT DEFAULT '[]',
+
+    matches TEXT DEFAULT '[]',
+
+    champion INTEGER
 
 )
 """)
 
-# =========================
+
+# ============================================================
+# CRIAR TORNEIO PADRÃO
+# ============================================================
+
+cursor.execute("""
+INSERT OR IGNORE INTO tournament (
+    id,
+    active,
+    name,
+    max_players,
+    players,
+    matches,
+    champion
+)
+VALUES (
+    1,
+    0,
+    '',
+    32,
+    '[]',
+    '[]',
+    NULL
+)
+""")
+
+
+# ============================================================
 # SALVAR
-# =========================
+# ============================================================
 
 conn.commit()
 conn.close()
+
 
 print("✅ Banco de dados carregado.")
