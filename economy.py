@@ -3,101 +3,131 @@ from discord.ext import commands, tasks
 import sqlite3
 import json
 
-conn = sqlite3.connect("database/database.db")
-cursor = conn.cursor()
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS players (
-    id TEXT PRIMARY KEY,
-    data TEXT
-)
-""")
-
-conn.commit()
+DATABASE = "database/database.db"
 
 VIP = 1460867416081825904
 MEGAVIP = 1460867926948057202
 
-def load_players():
 
-    cursor.execute(
-        "SELECT id, data FROM players"
+# =========================
+# SQLITE
+# =========================
+
+def connect_db():
+
+    return sqlite3.connect(DATABASE)
+
+
+def create_player(uid):
+
+    conn = connect_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    INSERT OR IGNORE INTO players (
+        user_id,
+        trofeus,
+        medalhas,
+        coins,
+        wins,
+        losses,
+        shop_week,
+        seasonwins,
+        medals,
+        hall,
+        partidas
     )
 
-    rows = cursor.fetchall()
-
-    data = {}
-
-    for uid, player_data in rows:
-
-        data[uid] = json.loads(player_data)
-
-    return data
-
-def save_players(data):
-
-    cursor.execute(
-        "DELETE FROM players"
+    VALUES (
+        ?, 0, 0, 0, 0, 0, 0,
+        '[]', '[]', '[]', '[]'
     )
-
-    for uid, player_data in data.items():
-
-        cursor.execute(
-            "INSERT INTO players (id, data) VALUES (?, ?)",
-            (
-                uid,
-                json.dumps(player_data)
-            )
-        )
+    """, (int(uid),))
 
     conn.commit()
+    conn.close()
 
-def create_player(data, uid):
 
-    if str(uid) not in data:
+def get_coins(uid):
 
-        data[str(uid)] = {
+    create_player(uid)
 
-            "trofeus": 0,
-            "medalhas": 0,
-            "coins": 0,
-            "wins": 0,
-            "losses": 0,
-            "seasonwins": [],
-            "medals": [],
-            "hall": [],
-            "partidas": []
-        }
+    conn = connect_db()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT coins FROM players WHERE user_id = ?",
+        (int(uid),)
+    )
+
+    result = cursor.fetchone()
+
+    conn.close()
+
+    if result is None:
+        return 0
+
+    return result[0]
+
+
+def add_coins(uid, quantidade):
+
+    create_player(uid)
+
+    conn = connect_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    UPDATE players
+
+    SET coins = coins + ?
+
+    WHERE user_id = ?
+    """, (
+        quantidade,
+        int(uid)
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+# =========================
+# SETUP
+# =========================
 
 def setup_economy(bot):
 
     @bot.command()
     async def moedas(
         ctx,
-        member: discord.Member=None
+        member: discord.Member = None
     ):
 
         if member is None:
             member = ctx.author
 
-        data = load_players()
-
-        create_player(
-            data,
+        coins = get_coins(
             member.id
         )
 
         embed = discord.Embed(
             title="🪙 Coins",
             description=(
-                f"{member.mention} "
-                f"possui "
-                f"{data[str(member.id)]['coins']}🪙"
+                f"{member.mention} possui "
+                f"**{coins}🪙**"
             ),
             color=discord.Color.gold()
         )
 
-        await ctx.send(embed=embed)
+        await ctx.send(
+            embed=embed
+        )
+
+
+    # =========================
+    # ADD COIN
+    # =========================
 
     @bot.command()
     @commands.has_permissions(
@@ -109,30 +139,34 @@ def setup_economy(bot):
         member: discord.Member
     ):
 
-        data = load_players()
+        if quantidade <= 0:
 
-        create_player(
-            data,
-            member.id
+            return await ctx.send(
+                "❌ A quantidade precisa ser maior que 0."
+            )
+
+        add_coins(
+            member.id,
+            quantidade
         )
-
-        data[
-            str(member.id)
-        ]["coins"] += quantidade
-
-        save_players(data)
 
         embed = discord.Embed(
             title="🪙 Coins adicionadas",
             description=(
-                f"{member.mention} "
-                f"recebeu "
-                f"+{quantidade}🪙"
+                f"{member.mention} recebeu "
+                f"**+{quantidade}🪙**"
             ),
             color=discord.Color.green()
         )
 
-        await ctx.send(embed=embed)
+        await ctx.send(
+            embed=embed
+        )
+
+
+    # =========================
+    # PRICES
+    # =========================
 
     @bot.command()
     async def prices(ctx):
@@ -144,32 +178,39 @@ def setup_economy(bot):
 
         embed.description = (
 
-    "💰 ROBUX → MOEDAS\n\n"
+            "💰 **ROBUX → MOEDAS**\n\n"
 
-    "50 Robux ➜ 20🪙\n"
-    "100 Robux ➜ 50🪙\n"
-    "150 Robux ➜ 85🪙\n"
-    "200 Robux ➜ 120🪙\n"
-    "300 Robux ➜ 190🪙\n"
-    "400 Robux ➜ 260🪙\n"
-    "600 Robux ➜ 420🪙\n"
-    "800 Robux ➜ 600🪙\n\n"
+            "50 Robux ➜ 20🪙\n"
+            "100 Robux ➜ 50🪙\n"
+            "150 Robux ➜ 85🪙\n"
+            "200 Robux ➜ 120🪙\n"
+            "300 Robux ➜ 190🪙\n"
+            "400 Robux ➜ 260🪙\n"
+            "600 Robux ➜ 420🪙\n"
+            "800 Robux ➜ 600🪙\n\n"
 
-    "💵 PIX → MOEDAS\n\n"
+            "💵 **PIX → MOEDAS**\n\n"
 
-    "R$2 ➜ 50🪙\n"
-    "R$5 ➜ 140🪙\n"
-    "R$10 ➜ 320🪙\n"
-    "R$15 ➜ 520🪙\n"
-    "R$20 ➜ 760🪙\n"
-    "R$30 ➜ 1200🪙\n"
-    "R$40 ➜ 1700🪙\n"
-    "R$50 ➜ 2300🪙\n\n"
+            "R$2 ➜ 50🪙\n"
+            "R$5 ➜ 140🪙\n"
+            "R$10 ➜ 320🪙\n"
+            "R$15 ➜ 520🪙\n"
+            "R$20 ➜ 760🪙\n"
+            "R$30 ➜ 1200🪙\n"
+            "R$40 ➜ 1700🪙\n"
+            "R$50 ➜ 2300🪙\n\n"
 
-    "✨ PIX possui melhor custo benefício."
-)
+            "✨ PIX possui melhor custo benefício."
+        )
 
-        await ctx.send(embed=embed)
+        await ctx.send(
+            embed=embed
+        )
+
+
+    # =========================
+    # MENSAL MANUAL
+    # =========================
 
     @bot.command()
     @commands.has_permissions(
@@ -177,12 +218,17 @@ def setup_economy(bot):
     )
     async def mensal(ctx):
 
-        data = load_players()
+        conn = connect_db()
+        cursor = conn.cursor()
+
+        entregues = 0
 
         for member in ctx.guild.members:
 
+            if member.bot:
+                continue
+
             create_player(
-                data,
                 member.id
             )
 
@@ -191,36 +237,59 @@ def setup_economy(bot):
                 id=MEGAVIP
             ):
 
-                data[
-                    str(member.id)
-                ]["coins"] += 20
+                cursor.execute("""
+                UPDATE players
+                SET coins = coins + 20
+                WHERE user_id = ?
+                """, (member.id,))
+
+                entregues += 20
 
             elif discord.utils.get(
                 member.roles,
                 id=VIP
             ):
 
-                data[
-                    str(member.id)
-                ]["coins"] += 4
+                cursor.execute("""
+                UPDATE players
+                SET coins = coins + 4
+                WHERE user_id = ?
+                """, (member.id,))
 
-        save_players(data)
+                entregues += 4
+
+        conn.commit()
+        conn.close()
 
         await ctx.send(
-            "✅ Coins mensais entregues."
-      )
+            f"✅ Coins mensais entregues.\n"
+            f"🪙 Total distribuído: {entregues}"
+        )
+
+
+# =========================
+# MENSAL AUTOMÁTICO
+# =========================
 
 @tasks.loop(hours=720)
 async def mensal_auto(bot):
 
+    if not bot.guilds:
+        return
+
     guild = bot.guilds[0]
 
-    data = load_players()
+    conn = connect_db()
+    cursor = conn.cursor()
+
+    entregues = 0
 
     for member in guild.members:
 
+        if member.bot:
+            continue
+
         create_player(
-            data,
             member.id
         )
 
@@ -229,15 +298,30 @@ async def mensal_auto(bot):
             id=MEGAVIP
         ):
 
-            data[str(member.id)]["coins"] += 20
+            cursor.execute("""
+            UPDATE players
+            SET coins = coins + 20
+            WHERE user_id = ?
+            """, (member.id,))
+
+            entregues += 20
 
         elif discord.utils.get(
             member.roles,
             id=VIP
         ):
 
-            data[str(member.id)]["coins"] += 4
+            cursor.execute("""
+            UPDATE players
+            SET coins = coins + 4
+            WHERE user_id = ?
+            """, (member.id,))
 
-    save_players(data)
+            entregues += 4
 
-    print("💎 Coins mensais entregues.")
+    conn.commit()
+    conn.close()
+
+    print(
+        f"💎 Coins mensais entregues: {entregues}"
+    )
