@@ -3,62 +3,90 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-
-import json
-import os
+import sqlite3
 import random
+import json
 
 
-# ============================================================
-# CONFIGURAÇÕES
-# ============================================================
-
-DATABASE_FOLDER = "database"
-TOURNAMENT_FILE = os.path.join(
-    DATABASE_FOLDER,
-    "tournament.json"
-)
+DATABASE = "database/database.db"
 
 MAX_PLAYERS = 32
 
 
 # ============================================================
-# BANCO DE DADOS
+# SQLITE
 # ============================================================
 
-def ensure_database():
+def connect_db():
+    return sqlite3.connect(DATABASE)
 
-    os.makedirs(DATABASE_FOLDER, exist_ok=True)
 
-    if not os.path.exists(TOURNAMENT_FILE):
+def setup_tournament_database():
 
-        data = {
-            "active": False,
-            "name": "",
-            "max_players": MAX_PLAYERS,
-            "players": [],
-            "matches": [],
-            "champion": None
-        }
+    conn = connect_db()
+    cursor = conn.cursor()
 
-        save_tournament(data)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS tournament (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        active INTEGER DEFAULT 0,
+        name TEXT DEFAULT '',
+        max_players INTEGER DEFAULT 32,
+        players TEXT DEFAULT '[]',
+        matches TEXT DEFAULT '[]',
+        champion INTEGER
+    )
+    """)
+
+    cursor.execute("""
+    INSERT OR IGNORE INTO tournament (
+        id,
+        active,
+        name,
+        max_players,
+        players,
+        matches,
+        champion
+    )
+    VALUES (
+        1,
+        0,
+        '',
+        32,
+        '[]',
+        '[]',
+        NULL
+    )
+    """)
+
+    conn.commit()
+    conn.close()
 
 
 def load_tournament():
 
-    ensure_database()
+    setup_tournament_database()
 
-    try:
+    conn = connect_db()
+    cursor = conn.cursor()
 
-        with open(
-            TOURNAMENT_FILE,
-            "r",
-            encoding="utf-8"
-        ) as file:
+    cursor.execute("""
+    SELECT
+        active,
+        name,
+        max_players,
+        players,
+        matches,
+        champion
+    FROM tournament
+    WHERE id = 1
+    """)
 
-            return json.load(file)
+    data = cursor.fetchone()
 
-    except Exception:
+    conn.close()
+
+    if not data:
 
         return {
             "active": False,
@@ -69,23 +97,44 @@ def load_tournament():
             "champion": None
         }
 
+    return {
+        "active": bool(data[0]),
+        "name": data[1],
+        "max_players": data[2],
+        "players": json.loads(data[3]),
+        "matches": json.loads(data[4]),
+        "champion": data[5]
+    }
+
 
 def save_tournament(data):
 
-    os.makedirs(DATABASE_FOLDER, exist_ok=True)
+    setup_tournament_database()
 
-    with open(
-        TOURNAMENT_FILE,
-        "w",
-        encoding="utf-8"
-    ) as file:
+    conn = connect_db()
+    cursor = conn.cursor()
 
-        json.dump(
-            data,
-            file,
-            indent=4,
-            ensure_ascii=False
-        )
+    cursor.execute("""
+    UPDATE tournament
+    SET
+        active = ?,
+        name = ?,
+        max_players = ?,
+        players = ?,
+        matches = ?,
+        champion = ?
+    WHERE id = 1
+    """, (
+        1 if data.get("active") else 0,
+        data.get("name", ""),
+        data.get("max_players", MAX_PLAYERS),
+        json.dumps(data.get("players", [])),
+        json.dumps(data.get("matches", [])),
+        data.get("champion")
+    ))
+
+    conn.commit()
+    conn.close()
 
 
 # ============================================================
@@ -94,7 +143,10 @@ def save_tournament(data):
 
 def tournament_embed(data):
 
-    players = data.get("players", [])
+    players = data.get(
+        "players",
+        []
+    )
 
     max_players = data.get(
         "max_players",
@@ -112,7 +164,7 @@ def tournament_embed(data):
             "Inscrições abertas para o torneio!\n\n"
             f"👥 **Jogadores:** "
             f"`{len(players)}/{max_players}`\n\n"
-            "Clique no botão abaixo para se inscrever."
+            "Clique nos botões abaixo para participar."
         ),
         color=discord.Color.gold()
     )
@@ -163,9 +215,10 @@ class TournamentView(discord.ui.View):
             timeout=None
         )
 
-    # --------------------------------------------------------
+
+    # ========================================================
     # INSCREVER
-    # --------------------------------------------------------
+    # ========================================================
 
     @discord.ui.button(
         label="Inscrever-se",
@@ -183,12 +236,10 @@ class TournamentView(discord.ui.View):
 
         if not data.get("active", False):
 
-            await interaction.response.send_message(
+            return await interaction.response.send_message(
                 "❌ Não existe nenhum torneio aberto.",
                 ephemeral=True
             )
-
-            return
 
         players = data.get(
             "players",
@@ -199,12 +250,10 @@ class TournamentView(discord.ui.View):
 
         if user_id in players:
 
-            await interaction.response.send_message(
+            return await interaction.response.send_message(
                 "❌ Você já está inscrito neste torneio.",
                 ephemeral=True
             )
-
-            return
 
         max_players = data.get(
             "max_players",
@@ -213,12 +262,10 @@ class TournamentView(discord.ui.View):
 
         if len(players) >= max_players:
 
-            await interaction.response.send_message(
+            return await interaction.response.send_message(
                 "❌ O torneio está lotado.",
                 ephemeral=True
             )
-
-            return
 
         players.append(user_id)
 
@@ -243,9 +290,9 @@ class TournamentView(discord.ui.View):
         )
 
 
-    # --------------------------------------------------------
+    # ========================================================
     # SAIR
-    # --------------------------------------------------------
+    # ========================================================
 
     @discord.ui.button(
         label="Sair",
@@ -270,12 +317,10 @@ class TournamentView(discord.ui.View):
 
         if user_id not in players:
 
-            await interaction.response.send_message(
+            return await interaction.response.send_message(
                 "❌ Você não está inscrito.",
                 ephemeral=True
             )
-
-            return
 
         players.remove(user_id)
 
@@ -312,7 +357,7 @@ class Tournament(commands.Cog):
 
 
     # ========================================================
-    # /torneio criar
+    # /torneio-criar
     # ========================================================
 
     @app_commands.command(
@@ -332,41 +377,33 @@ class Tournament(commands.Cog):
 
         if not interaction.user.guild_permissions.administrator:
 
-            await interaction.response.send_message(
+            return await interaction.response.send_message(
                 "❌ Apenas administradores podem criar torneios.",
                 ephemeral=True
             )
 
-            return
-
         if vagas < 2:
 
-            await interaction.response.send_message(
+            return await interaction.response.send_message(
                 "❌ O torneio precisa ter pelo menos 2 jogadores.",
                 ephemeral=True
             )
 
-            return
-
         if vagas > 64:
 
-            await interaction.response.send_message(
+            return await interaction.response.send_message(
                 "❌ O limite máximo é de 64 jogadores.",
                 ephemeral=True
             )
-
-            return
 
         data = load_tournament()
 
         if data.get("active", False):
 
-            await interaction.response.send_message(
+            return await interaction.response.send_message(
                 "❌ Já existe um torneio ativo.",
                 ephemeral=True
             )
-
-            return
 
         data = {
             "active": True,
@@ -379,16 +416,14 @@ class Tournament(commands.Cog):
 
         save_tournament(data)
 
-        embed = tournament_embed(data)
-
         await interaction.response.send_message(
-            embed=embed,
+            embed=tournament_embed(data),
             view=TournamentView()
         )
 
 
     # ========================================================
-    # /torneio cancelar
+    # /torneio-cancelar
     # ========================================================
 
     @app_commands.command(
@@ -402,23 +437,19 @@ class Tournament(commands.Cog):
 
         if not interaction.user.guild_permissions.administrator:
 
-            await interaction.response.send_message(
+            return await interaction.response.send_message(
                 "❌ Apenas administradores podem cancelar o torneio.",
                 ephemeral=True
             )
-
-            return
 
         data = load_tournament()
 
         if not data.get("active", False):
 
-            await interaction.response.send_message(
+            return await interaction.response.send_message(
                 "❌ Não existe nenhum torneio ativo.",
                 ephemeral=True
             )
-
-            return
 
         data["active"] = False
 
@@ -430,7 +461,7 @@ class Tournament(commands.Cog):
 
 
     # ========================================================
-    # /torneio status
+    # /torneio-status
     # ========================================================
 
     @app_commands.command(
@@ -446,12 +477,10 @@ class Tournament(commands.Cog):
 
         if not data.get("active", False):
 
-            await interaction.response.send_message(
+            return await interaction.response.send_message(
                 "❌ Não existe nenhum torneio ativo.",
                 ephemeral=True
             )
-
-            return
 
         await interaction.response.send_message(
             embed=tournament_embed(data)
@@ -459,7 +488,7 @@ class Tournament(commands.Cog):
 
 
     # ========================================================
-    # /torneio sortear
+    # /torneio-sortear
     # ========================================================
 
     @app_commands.command(
@@ -473,23 +502,19 @@ class Tournament(commands.Cog):
 
         if not interaction.user.guild_permissions.administrator:
 
-            await interaction.response.send_message(
+            return await interaction.response.send_message(
                 "❌ Apenas administradores podem sortear os confrontos.",
                 ephemeral=True
             )
-
-            return
 
         data = load_tournament()
 
         if not data.get("active", False):
 
-            await interaction.response.send_message(
+            return await interaction.response.send_message(
                 "❌ Não existe nenhum torneio ativo.",
                 ephemeral=True
             )
-
-            return
 
         players = data.get(
             "players",
@@ -498,12 +523,12 @@ class Tournament(commands.Cog):
 
         if len(players) < 2:
 
-            await interaction.response.send_message(
+            return await interaction.response.send_message(
                 "❌ É necessário ter pelo menos 2 jogadores.",
                 ephemeral=True
             )
 
-            return
+        players = players.copy()
 
         random.shuffle(players)
 
@@ -554,7 +579,6 @@ class Tournament(commands.Cog):
 
                 p2 = f"<@{match['player2']}>"
 
-
                 texto = (
                     f"{p1} **VS** {p2}"
                 )
@@ -577,7 +601,7 @@ class Tournament(commands.Cog):
 
 
     # ========================================================
-    # /torneio encerrar
+    # /torneio-encerrar
     # ========================================================
 
     @app_commands.command(
@@ -595,26 +619,28 @@ class Tournament(commands.Cog):
 
         if not interaction.user.guild_permissions.administrator:
 
-            await interaction.response.send_message(
-                "❌ Apenas administradores podem encerrar o torneio.",
+            return await interaction.response.send_message(
+                "❌ Apenas administradores podem encerrar os torneios.",
                 ephemeral=True
             )
-
-            return
 
         data = load_tournament()
 
         if not data.get("active", False):
 
-            await interaction.response.send_message(
+            return await interaction.response.send_message(
                 "❌ Não existe nenhum torneio ativo.",
                 ephemeral=True
             )
 
-            return
+        if vencedor.id not in data.get("players", []):
+
+            return await interaction.response.send_message(
+                "❌ Esse jogador não está inscrito no torneio.",
+                ephemeral=True
+            )
 
         data["active"] = False
-
         data["champion"] = vencedor.id
 
         save_tournament(data)
@@ -643,7 +669,7 @@ class Tournament(commands.Cog):
 
 async def setup_tournament(bot):
 
-    ensure_database()
+    setup_tournament_database()
 
     await bot.add_cog(
         Tournament(bot)
