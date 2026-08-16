@@ -1,6 +1,7 @@
 # main.py
 
 import os
+import inspect
 import discord
 
 from discord.ext import commands
@@ -44,97 +45,124 @@ class FALBot(commands.Bot):
             intents=intents
         )
 
+
+    # ========================================================
+    # SETUP
+    # ========================================================
+
     async def setup_hook(self):
 
-        print("🔄 Carregando módulos...")
+        print("")
+        print("========================================")
+        print("       🔄 CARREGANDO FAL-UP BOT")
+        print("========================================")
+        print("")
 
-        # ----------------------------------------------------
-        # ECONOMY
-        # ----------------------------------------------------
+
+        # ====================================================
+        # DATABASE
+        # ====================================================
 
         try:
+
+            import database_setup
+
+            print("✅ database_setup.py carregado")
+
+        except Exception as e:
+
+            print(
+                f"❌ Erro ao carregar database_setup.py: {e}"
+            )
+
+
+        # ====================================================
+        # FUNÇÃO AUXILIAR
+        # ====================================================
+
+        async def carregar(
+            nome,
+            funcao
+        ):
+
+            try:
+
+                resultado = funcao(self)
+
+                if inspect.isawaitable(resultado):
+
+                    await resultado
+
+                print(
+                    f"✅ {nome} carregado"
+                )
+
+            except Exception as e:
+
+                print(
+                    f"❌ Erro ao carregar {nome}: {e}"
+                )
+
+
+        # ====================================================
+        # ECONOMY
+        # ====================================================
+
+        try:
+
             from economy import setup_economy
 
-            await setup_economy(self)
+            resultado = setup_economy(self)
+
+            if inspect.isawaitable(resultado):
+
+                await resultado
 
             print("✅ economy.py carregado")
 
         except Exception as e:
 
-            print(f"❌ Erro ao carregar economy.py: {e}")
+            print(
+                f"❌ Erro ao carregar economy.py: {e}"
+            )
 
-        # ----------------------------------------------------
+
+        # ====================================================
         # HALL
-        # ----------------------------------------------------
+        # ====================================================
 
         try:
+
             from hall import setup_hall
 
-            await setup_hall(self)
+            resultado = setup_hall(self)
+
+            if inspect.isawaitable(resultado):
+
+                await resultado
 
             print("✅ hall.py carregado")
 
         except Exception as e:
 
-            print(f"❌ Erro ao carregar hall.py: {e}")
-
-        # ----------------------------------------------------
-        # SHOP
-        # ----------------------------------------------------
-
-        try:
-            from shop import setup_shop
-
-            await setup_shop(self)
-
-            print("✅ shop.py carregado")
-
-        except Exception as e:
-
-            print(f"❌ Erro ao carregar shop.py: {e}")
-
-        # ----------------------------------------------------
-        # QUEUE SYSTEM
-        # ----------------------------------------------------
-
-        try:
-            from queue_system import setup_queue
-
-            await setup_queue(self)
-
-            print("✅ queue_system.py carregado")
-
-        except Exception as e:
-
             print(
-                f"❌ Erro ao carregar queue_system.py: {e}"
+                f"❌ Erro ao carregar hall.py: {e}"
             )
 
-        # ----------------------------------------------------
-        # TOURNAMENT
-        # ----------------------------------------------------
 
-        try:
-            from tournament import setup_tournament
-
-            await setup_tournament(self)
-
-            print("✅ tournament.py carregado")
-
-        except Exception as e:
-
-            print(
-                f"❌ Erro ao carregar tournament.py: {e}"
-            )
-
-        # ----------------------------------------------------
+        # ====================================================
         # RANKED
-        # ----------------------------------------------------
+        # ====================================================
 
         try:
+
             from ranked import setup_ranked
 
-            await setup_ranked(self)
+            resultado = setup_ranked(self)
+
+            if inspect.isawaitable(resultado):
+
+                await resultado
 
             print("✅ ranked.py carregado")
 
@@ -144,14 +172,66 @@ class FALBot(commands.Bot):
                 f"❌ Erro ao carregar ranked.py: {e}"
             )
 
-        # ----------------------------------------------------
-        # CLANS
-        # ----------------------------------------------------
+
+        # ====================================================
+        # QUEUE SYSTEM
+        # ====================================================
 
         try:
+
+            from queue_system import setup_queue
+
+            resultado = setup_queue(self)
+
+            if inspect.isawaitable(resultado):
+
+                await resultado
+
+            print("✅ queue_system.py carregado")
+
+        except Exception as e:
+
+            print(
+                f"❌ Erro ao carregar queue_system.py: {e}"
+            )
+
+
+        # ====================================================
+        # SHOP
+        # ====================================================
+
+        try:
+
+            from shop import setup_shop
+
+            resultado = setup_shop(self)
+
+            if inspect.isawaitable(resultado):
+
+                await resultado
+
+            print("✅ shop.py carregado")
+
+        except Exception as e:
+
+            print(
+                f"❌ Erro ao carregar shop.py: {e}"
+            )
+
+
+        # ====================================================
+        # CLANS
+        # ====================================================
+
+        try:
+
             from clans import setup_clans
 
-            await setup_clans(self)
+            resultado = setup_clans(self)
+
+            if inspect.isawaitable(resultado):
+
+                await resultado
 
             print("✅ clans.py carregado")
 
@@ -161,14 +241,20 @@ class FALBot(commands.Bot):
                 f"❌ Erro ao carregar clans.py: {e}"
             )
 
-        # ----------------------------------------------------
-        # EMBEDS
-        # ----------------------------------------------------
+
+        # ====================================================
+        # EMBED
+        # ====================================================
 
         try:
+
             from embed import setup_embed
 
-            await setup_embed(self)
+            resultado = setup_embed(self)
+
+            if inspect.isawaitable(resultado):
+
+                await resultado
 
             print("✅ embed.py carregado")
 
@@ -178,10 +264,35 @@ class FALBot(commands.Bot):
                 f"❌ Erro ao carregar embed.py: {e}"
             )
 
+
         # ====================================================
-        # SINCRONIZAÇÃO DOS SLASH COMMANDS
+        # TOURNAMENT
         # ====================================================
 
+        try:
+
+            from tournament import setup_tournament
+
+            resultado = setup_tournament(self)
+
+            if inspect.isawaitable(resultado):
+
+                await resultado
+
+            print("✅ tournament.py carregado")
+
+        except Exception as e:
+
+            print(
+                f"❌ Erro ao carregar tournament.py: {e}"
+            )
+
+
+        # ====================================================
+        # SINCRONIZAR SLASH COMMANDS
+        # ====================================================
+
+        print("")
         print("🔄 Sincronizando comandos /...")
 
         try:
@@ -199,17 +310,26 @@ class FALBot(commands.Bot):
             )
 
 
+        print("")
+        print("========================================")
+        print("       ✅ MÓDULOS CARREGADOS")
+        print("========================================")
+        print("")
+
+
+    # ========================================================
+    # READY
+    # ========================================================
+
     async def on_ready(self):
 
         print("")
         print("========================================")
-        print("        FAL-UP BOT ONLINE")
+        print("          FAL-UP BOT ONLINE")
         print("========================================")
         print(f"🤖 Bot: {self.user}")
         print(f"🆔 ID: {self.user.id}")
-        print(
-            f"🌐 Servidores: {len(self.guilds)}"
-        )
+        print(f"🌐 Servidores: {len(self.guilds)}")
         print("========================================")
         print("")
 
@@ -222,7 +342,7 @@ bot = FALBot()
 
 
 # ============================================================
-# COMANDO DE TESTE
+# /PING
 # ============================================================
 
 @bot.tree.command(
@@ -233,7 +353,9 @@ async def ping(
     interaction: discord.Interaction
 ):
 
-    latency = round(bot.latency * 1000)
+    latency = round(
+        bot.latency * 1000
+    )
 
     await interaction.response.send_message(
         f"🏓 Pong!\n"
@@ -242,7 +364,7 @@ async def ping(
 
 
 # ============================================================
-# TRATAMENTO DE ERROS DOS SLASH COMMANDS
+# ERROS DOS SLASH COMMANDS
 # ============================================================
 
 @bot.tree.error
@@ -251,9 +373,9 @@ async def on_app_command_error(
     error: app_commands.AppCommandError
 ):
 
-    # --------------------------------------------------------
+    # ========================================================
     # SEM PERMISSÃO
-    # --------------------------------------------------------
+    # ========================================================
 
     if isinstance(
         error,
@@ -265,9 +387,10 @@ async def on_app_command_error(
             "para usar este comando."
         )
 
-    # --------------------------------------------------------
+
+    # ========================================================
     # COMANDO NÃO ENCONTRADO
-    # --------------------------------------------------------
+    # ========================================================
 
     elif isinstance(
         error,
@@ -278,24 +401,30 @@ async def on_app_command_error(
             "❌ Esse comando não existe."
         )
 
-    # --------------------------------------------------------
+
+    # ========================================================
     # ERRO GENÉRICO
-    # --------------------------------------------------------
+    # ========================================================
 
     else:
 
-        print(
-            f"❌ Erro no comando: {error}"
-        )
+        print("")
+        print("========================================")
+        print("❌ ERRO EM SLASH COMMAND")
+        print("========================================")
+        print(error)
+        print("========================================")
+        print("")
 
         mensagem = (
             "❌ Ocorreu um erro ao executar "
             "este comando."
         )
 
-    # --------------------------------------------------------
-    # ENVIA RESPOSTA
-    # --------------------------------------------------------
+
+    # ========================================================
+    # ENVIAR ERRO
+    # ========================================================
 
     try:
 
