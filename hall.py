@@ -4,21 +4,23 @@ from datetime import datetime
 import sqlite3
 import json
 
-conn = sqlite3.connect("database/database.db")
-cursor = conn.cursor()
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS hall (
-    id TEXT PRIMARY KEY,
-    data TEXT
-)
-""")
-
-conn.commit()
+DATABASE = "database/database.db"
 
 HALL_CHANNEL = 1461218594615459979
 
+
+# =========================
+# SQLITE
+# =========================
+
+def connect_db():
+    return sqlite3.connect(DATABASE)
+
+
 def load_hall():
+
+    conn = connect_db()
+    cursor = conn.cursor()
 
     cursor.execute(
         "SELECT id, data FROM hall"
@@ -26,33 +28,53 @@ def load_hall():
 
     rows = cursor.fetchall()
 
+    conn.close()
+
     data = {}
 
     for uid, hall_data in rows:
 
-        data[uid] = json.loads(hall_data)
+        try:
+            data[uid] = json.loads(hall_data)
+
+        except json.JSONDecodeError:
+            data[uid] = []
 
     return data
 
+
 def save_hall(data):
 
-    cursor.execute(
-        "DELETE FROM hall"
-    )
+    conn = connect_db()
+    cursor = conn.cursor()
 
     for uid, hall_data in data.items():
 
         cursor.execute(
-            "INSERT INTO hall (id, data) VALUES (?, ?)",
+            """
+            INSERT OR REPLACE INTO hall
+            (id, data)
+            VALUES (?, ?)
+            """,
             (
-                uid,
+                str(uid),
                 json.dumps(hall_data)
             )
         )
 
     conn.commit()
+    conn.close()
+
+
+# =========================
+# SETUP
+# =========================
 
 def setup_hall(bot):
+
+    # =========================
+    # ADICIONAR REGISTRO
+    # =========================
 
     @bot.command()
     @commands.has_permissions(
@@ -68,43 +90,67 @@ def setup_hall(bot):
 
         data = load_hall()
 
-        if str(member.id) not in data:
+        uid = str(member.id)
 
-            data[str(member.id)] = []
+        if uid not in data:
+            data[uid] = []
 
         registro = {
 
             "season": season,
+
             "feito": feito,
+
             "data": datetime.now().strftime(
                 "%d/%m/%Y"
             )
         }
 
-        data[
-            str(member.id)
-        ].append(registro)
+        data[uid].append(
+            registro
+        )
 
         save_hall(data)
+
+        # =========================
+        # EMBED
+        # =========================
 
         embed = discord.Embed(
             title="🏆 HALL DA FAMA",
             description=(
                 f"{member.mention} "
-                f"teve um novo registro."
+                "teve um novo registro!"
             ),
             color=discord.Color.gold()
         )
 
         embed.add_field(
             name="🏁 Season",
-            value=season
+            value=season,
+            inline=True
         )
 
         embed.add_field(
-            name="📜 Feito",
+            name="📜 Conquista",
             value=feito,
             inline=False
+        )
+
+        embed.add_field(
+            name="📅 Data",
+            value=registro["data"],
+            inline=True
+        )
+
+        if member.display_avatar:
+
+            embed.set_thumbnail(
+                url=member.display_avatar.url
+            )
+
+        embed.set_footer(
+            text="FAL • Hall da Fama"
         )
 
         canal = bot.get_channel(
@@ -118,13 +164,18 @@ def setup_hall(bot):
             )
 
         await ctx.send(
-            "✅ Registro salvo."
+            "✅ Registro salvo no Hall da Fama."
         )
+
+
+    # =========================
+    # CONSULTAR HALL
+    # =========================
 
     @bot.command()
     async def halldafama(
         ctx,
-        member: discord.Member=None
+        member: discord.Member = None
     ):
 
         if member is None:
@@ -132,38 +183,56 @@ def setup_hall(bot):
 
         data = load_hall()
 
+        uid = str(member.id)
+
         embed = discord.Embed(
-            title=(
-                f"🏆 Hall da Fama "
-                f"{member.name}"
+            title=f"🏆 Hall da Fama",
+            description=(
+                f"Registros de "
+                f"**{member.display_name}**"
             ),
             color=discord.Color.gold()
         )
 
-        texto = ""
+        if member.display_avatar:
 
-        if str(member.id) in data:
-
-            for item in data[
-                str(member.id)
-            ][-15:]:
-
-                texto += (
-                    f"🏁 {item['season']}\n"
-                    f"🏆 {item['data']} ┊ "
-                    f"{item['feito']}\n\n"
-                )
-
-        if texto == "":
-
-            texto = (
-                "❌ Nenhum desempenho "
-                "registrado.\n"
-                "📊 Este jogador ainda "
-                "não possui registros."
+            embed.set_thumbnail(
+                url=member.display_avatar.url
             )
 
-        embed.description = texto
+        registros = data.get(
+            uid,
+            []
+        )
+
+        if not registros:
+
+            embed.add_field(
+                name="📜 Registros",
+                value=(
+                    "❌ Nenhum desempenho "
+                    "registrado ainda."
+                ),
+                inline=False
+            )
+
+        else:
+
+            texto = ""
+
+            for item in registros[-15:]:
+
+                texto += (
+                    f"🏁 **{item['season']}**\n"
+                    f"🏆 {item['feito']}\n"
+                    f"📅 {item['data']}\n\n"
+                )
+
+            embed.add_field(
+                name="📜 Conquistas",
+                value=texto,
+                inline=False
+            )
 
         embed.set_footer(
             text=(
@@ -172,4 +241,6 @@ def setup_hall(bot):
             )
         )
 
-        await ctx.send(embed=embed)
+        await ctx.send(
+            embed=embed
+        )
