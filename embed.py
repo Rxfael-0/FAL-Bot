@@ -162,7 +162,8 @@ def setup_embed(bot):
         except discord.Forbidden:
 
             return await interaction.response.send_message(
-                "❌ Não tenho permissão para enviar mensagens ou embeds nesse canal.",
+                "❌ Não tenho permissão para enviar mensagens "
+                "ou embeds nesse canal.",
                 ephemeral=True
             )
 
