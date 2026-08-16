@@ -1,149 +1,112 @@
 import discord
 from discord.ext import commands
-from discord.ui import View, button
-from datetime import datetime
-from PIL import Image, ImageDraw, ImageFont
-import json
-import asyncio
 import sqlite3
-
-# =========================
-# DATABASE
-# =========================
+import json
+from datetime import datetime
 
 DATABASE = "database/database.db"
 
-# =========================
-# CANAIS
-# =========================
-
-HALL_CHANNEL = 1461218594615459979
-TOP15_CHANNEL = 1462527038668673044
-
-RANKED_L1 = 1460670873328550125
-RANKED_L2 = 1460671197929935006
-RANKED_L3 = 1460671365223940156
-
-LOGS = 1506467756554584114
-
-AMISTOSO_CHANNEL = 1468742231912480798
-
-# =========================
-# CARGOS
-# =========================
-
-RANKS = {
-
-    "R1": 1460459242413752381,
-    "R2": 1460460021564440666,
-    "R3": 1460460328948338852,
-    "R4": 1460460452810330249,
-    "R5": 1460460767290724384,
-    "R6": 1460510486075543685,
-    "R7": 1460510898174300301,
-    "R8": 1460511507124060212,
-    "R9": 1460511975007326280,
-    "R10": 1460513229997609024,
-    "R11": 1460514685110718466,
-    "R12": 1460515368069234729
-}
-
-LEAGUES = {
-
-    "L1": 1460723355945795821,
-    "L2": 1460723503971172403,
-    "L3": 1460723621025681523
-}
-
-PROTECTION_ROLE = 1499609557138407424
-BOOST_ROLE = 1499608761592053840
-CURSE_ROLE = 1499609510623580190
-SEASON_ROLE = 1499609960869400636
 
 # =========================
 # SQLITE
 # =========================
 
 def connect_db():
-
     return sqlite3.connect(DATABASE)
 
 
-def create_player(user_id):
-
-    conn = connect_db()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        "SELECT user_id FROM players WHERE user_id = ?",
-        (str(user_id),)
-    )
-
-    data = cursor.fetchone()
-
-    if not data:
-
-        cursor.execute("""
-        INSERT INTO players (
-            user_id
-        )
-        VALUES (?)
-        """, (str(user_id),))
-
-        conn.commit()
-
-    conn.close()
-
-def get_player(user_id):
-
-    create_player(user_id)
-
-    conn = connect_db()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        "SELECT * FROM players WHERE user_id = ?",
-        (str(user_id),)
-    )
-
-    data = cursor.fetchone()
-
-    conn.close()
-
-    return {
-
-        "trofeus": data[1],
-        "medalhas": data[2],
-        "coins": data[3],
-
-        "wins": data[4],
-        "losses": data[5],
-
-        "shop_week": data[6],
-
-        "seasonwins": json.loads(data[7]),
-        "medals": json.loads(data[8]),
-        "hall": json.loads(data[9]),
-        "partidas": json.loads(data[10])
-    }
-
-def update_player(user_id, data):
+def create_player(uid):
 
     conn = connect_db()
     cursor = conn.cursor()
 
     cursor.execute("""
-    UPDATE players SET
+    INSERT OR IGNORE INTO players (
+        user_id,
+        trofeus,
+        medalhas,
+        coins,
+        wins,
+        losses,
+        shop_week,
+        seasonwins,
+        medals,
+        hall,
+        partidas
+    )
+    VALUES (
+        ?, 0, 0, 0, 0, 0, 0,
+        '[]', '[]', '[]', '[]'
+    )
+    """, (int(uid),))
 
+    conn.commit()
+    conn.close()
+
+
+def get_player(uid):
+
+    create_player(uid)
+
+    conn = connect_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT
+        user_id,
+        trofeus,
+        medalhas,
+        coins,
+        wins,
+        losses,
+        shop_week,
+        seasonwins,
+        medals,
+        hall,
+        partidas
+
+    FROM players
+
+    WHERE user_id = ?
+    """, (int(uid),))
+
+    row = cursor.fetchone()
+
+    conn.close()
+
+    if not row:
+        return None
+
+    return {
+        "user_id": row[0],
+        "trofeus": row[1],
+        "medalhas": row[2],
+        "coins": row[3],
+        "wins": row[4],
+        "losses": row[5],
+        "shop_week": row[6],
+        "seasonwins": json.loads(row[7] or "[]"),
+        "medals": json.loads(row[8] or "[]"),
+        "hall": json.loads(row[9] or "[]"),
+        "partidas": json.loads(row[10] or "[]")
+    }
+
+
+def save_player(uid, player):
+
+    conn = connect_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    UPDATE players
+
+    SET
         trofeus = ?,
         medalhas = ?,
         coins = ?,
-
         wins = ?,
         losses = ?,
-
         shop_week = ?,
-
         seasonwins = ?,
         medals = ?,
         hall = ?,
@@ -151,124 +114,88 @@ def update_player(user_id, data):
 
     WHERE user_id = ?
     """, (
-
-        data["trofeus"],
-        data["medalhas"],
-        data["coins"],
-
-        data["wins"],
-        data["losses"],
-
-        data["shop_week"],
-
-        json.dumps(data["seasonwins"]),
-        json.dumps(data["medals"]),
-        json.dumps(data["hall"]),
-        json.dumps(data["partidas"]),
-
-        str(user_id)
+        player["trofeus"],
+        player["medalhas"],
+        player["coins"],
+        player["wins"],
+        player["losses"],
+        player["shop_week"],
+        json.dumps(player["seasonwins"]),
+        json.dumps(player["medals"]),
+        json.dumps(player["hall"]),
+        json.dumps(player["partidas"]),
+        int(uid)
     ))
 
     conn.commit()
     conn.close()
 
-# =========================
-# RANK SYSTEM
-# =========================
-
-def get_rank(t):
-
-    if t <= 99:
-        return "R1"
-
-    elif t <= 299:
-        return "R2"
-
-    elif t <= 499:
-        return "R3"
-
-    elif t <= 699:
-        return "R4"
-
-    elif t <= 999:
-        return "R5"
-
-    elif t <= 1399:
-        return "R6"
-
-    elif t <= 1899:
-        return "R7"
-
-    elif t <= 2399:
-        return "R8"
-
-    elif t <= 2999:
-        return "R9"
-
-    elif t <= 3699:
-        return "R10"
-
-    elif t <= 4399:
-        return "R11"
-
-    return "R12"
-
-def get_league(t):
-
-    if t < 1000:
-        return "L1"
-
-    elif t < 3000:
-        return "L2"
-
-    return "L3"
 
 # =========================
-# UPDATE ROLES
+# MEDALHAS
 # =========================
 
-async def update_roles(member, trofeus):
+MEDALS = {
 
-    guild = member.guild
+    "1st": {
+        "emoji": "🥇",
+        "nome": "1st Place"
+    },
 
-    rank = get_rank(trofeus)
-    league = get_league(trofeus)
+    "2nd": {
+        "emoji": "🥈",
+        "nome": "2nd Place"
+    },
 
-    for rid in RANKS.values():
+    "3rd": {
+        "emoji": "🥉",
+        "nome": "3rd Place"
+    },
 
-        role = guild.get_role(rid)
+    "champion": {
+        "emoji": "🏆",
+        "nome": "Champion"
+    },
 
-        if role in member.roles:
+    "mvp": {
+        "emoji": "⭐",
+        "nome": "MVP"
+    },
 
-            await member.remove_roles(role)
+    "weekly": {
+        "emoji": "🔥",
+        "nome": "Weekly Winner"
+    }
+}
 
-    for lid in LEAGUES.values():
 
-        role = guild.get_role(lid)
+def format_medals(medals):
 
-        if role in member.roles:
+    if not medals:
+        return "Nenhuma medalha conquistada ainda."
 
-            await member.remove_roles(role)
+    linhas = []
 
-    await member.add_roles(
-        guild.get_role(RANKS[rank])
-    )
+    for medal in medals:
 
-    await member.add_roles(
-        guild.get_role(LEAGUES[league])
-    )
+        medal_key = str(medal).lower()
 
-# =========================
-# LOGS
-# =========================
+        if medal_key in MEDALS:
 
-async def send_log(guild, text):
+            info = MEDALS[medal_key]
 
-    canal = guild.get_channel(LOGS)
+            linhas.append(
+                f"{info['emoji']} **{info['nome']}**"
+            )
 
-    if canal:
+        else:
 
-        await canal.send(text)
+            linhas.append(
+                f"🏅 **{medal}**"
+            )
+
+    return "\n".join(linhas)
+
 
 # =========================
 # SETUP
@@ -283,363 +210,252 @@ def setup_ranked(bot):
     @bot.command()
     async def perfil(
         ctx,
-        member: discord.Member=None
+        member: discord.Member = None
     ):
 
         if member is None:
-
             member = ctx.author
 
-        p = get_player(member.id)
-
-        rank = get_rank(
-            p["trofeus"]
+        player = get_player(
+            member.id
         )
 
-        league = get_league(
-            p["trofeus"]
-        )
-
-        medals = ""
-
-        for medal in p["medals"]:
-
-            medals += f"{medal} "
-
-        if medals == "":
-
-            medals = "Nenhuma."
-
-        hall = ""
-
-        for item in p["hall"][-5:]:
-
-            hall += (
-                f"🏆 {item['data']} ┊ "
-                f"{item['feito']}\n"
-            )
-
-        if hall == "":
-
-            hall = "❌ Nenhum desempenho registrado."
-
-        embed = discord.Embed(
-            title=f"🏆 Perfil de {member.name}",
-            color=discord.Color.red()
-        )
-
-        embed.set_thumbnail(
-            url=member.display_avatar.url
-        )
-
-        embed.add_field(
-            name="🏅 Rank",
-            value=rank
-        )
-
-        embed.add_field(
-            name="🏆 Troféus",
-            value=p["trofeus"]
-        )
-
-        embed.add_field(
-            name="🎖 Medalhas",
-            value=p["medalhas"]
-        )
-
-        embed.add_field(
-            name="🛡 League",
-            value=league
-        )
-
-        embed.add_field(
-            name="🪙 Coins",
-            value=p["coins"]
-        )
-
-        embed.add_field(
-            name="🏅 Coleção",
-            value=medals,
-            inline=False
-        )
-
-        embed.add_field(
-            name="🏁 Hall da fama",
-            value=hall,
-            inline=False
-        )
-
-        await ctx.send(embed=embed)
-
-    # =========================
-    # ADD TROFEU
-    # =========================
-
-    @bot.command()
-    @commands.has_permissions(
-        administrator=True
-    )
-    async def addtrofeu(
-        ctx,
-        quantidade: int,
-        member: discord.Member
-    ):
-
-        player = get_player(member.id)
-
-        ganhou = quantidade
-
-        if discord.utils.get(
-            member.roles,
-            id=BOOST_ROLE
-        ):
-
-            ganhou *= 2
-
-        player["trofeus"] += ganhou
-
-        if player["trofeus"] >= 5000:
-
-            player["medalhas"] += 1
-
-        player["partidas"].append({
-
-            "resultado": f"+{ganhou}🏆",
-
-            "data": datetime.now().strftime(
-                "%d/%m/%Y"
-            ),
-
-            "staff": ctx.author.name
-        })
-
-        update_player(
-            member.id,
-            player
-        )
-
-        await update_roles(
-            member,
-            player["trofeus"]
-        )
-
-        embed = discord.Embed(
-            title="🏆 TROFÉUS ADICIONADOS",
-            description=(
-                f"{member.mention} ganhou "
-                f"+{ganhou}🏆"
-            ),
-            color=discord.Color.green()
-        )
-
-        await ctx.send(embed=embed)
-
-        await send_log(
-            ctx.guild,
-            (
-                f"➕ {ctx.author} adicionou "
-                f"{ganhou}🏆 para "
-                f"{member}"
-            )
-        )
-
-    # =========================
-    # REMOVE TROFEU
-    # =========================
-
-    @bot.command()
-    @commands.has_permissions(
-        administrator=True
-    )
-    async def removetrofeu(
-        ctx,
-        quantidade: int,
-        member: discord.Member
-    ):
-
-        player = get_player(member.id)
-
-        perda = quantidade
-
-        if discord.utils.get(
-            member.roles,
-            id=PROTECTION_ROLE
-        ):
-
+        if player is None:
             return await ctx.send(
-                "🛡 Proteção ativada."
+                "❌ Não foi possível encontrar o jogador."
             )
 
-        if discord.utils.get(
-            member.roles,
-            id=CURSE_ROLE
-        ):
+        wins = player["wins"]
+        losses = player["losses"]
 
-            perda *= 2
+        total_partidas = wins + losses
 
-        player["trofeus"] -= perda
+        if total_partidas > 0:
 
-        player["partidas"].append({
+            winrate = (
+                wins / total_partidas
+            ) * 100
 
-            "resultado": f"-{perda}🏆",
+        else:
 
-            "data": datetime.now().strftime(
-                "%d/%m/%Y"
-            ),
-
-            "staff": ctx.author.name
-        })
-
-        update_player(
-            member.id,
-            player
-        )
-
-        await update_roles(
-            member,
-            player["trofeus"]
-        )
+            winrate = 0
 
         embed = discord.Embed(
-            title="❌ TROFÉUS REMOVIDOS",
-            description=(
-                f"{member.mention} perdeu "
-                f"-{perda}🏆"
-            ),
-            color=discord.Color.red()
-        )
-
-        await ctx.send(embed=embed)
-
-        await send_log(
-            ctx.guild,
-            (
-                f"➖ {ctx.author} removeu "
-                f"{perda}🏆 de "
-                f"{member}"
-            )
-)
-        # =========================
-    # PARTIDAS
-    # =========================
-
-    @bot.command()
-    async def partidas(
-        ctx,
-        member: discord.Member=None
-    ):
-
-        if member is None:
-
-            member = ctx.author
-
-        player = get_player(member.id)
-
-        partidas = player["partidas"]
-
-        embed = discord.Embed(
-            title="📜 Histórico",
+            title=f"🏆 Perfil — {member.display_name}",
             color=discord.Color.blurple()
         )
 
-        texto = ""
+        if member.display_avatar:
 
-        for p in partidas[-15:]:
-
-            texto += (
-                f"{p['resultado']} • "
-                f"{p['data']}\n"
+            embed.set_thumbnail(
+                url=member.display_avatar.url
             )
 
-        if texto == "":
+        # =========================
+        # RANKED
+        # =========================
 
-            texto = "Nenhuma."
+        embed.add_field(
+            name="🏅 Ranked",
+            value=(
+                f"🏆 Troféus: **{player['trofeus']}**\n"
+                f"🥇 Vitórias: **{wins}**\n"
+                f"❌ Derrotas: **{losses}**\n"
+                f"📊 Winrate: **{winrate:.1f}%**"
+            ),
+            inline=False
+        )
 
-        embed.description = texto
+        # =========================
+        # ECONOMIA
+        # =========================
 
-        await ctx.send(embed=embed)
+        embed.add_field(
+            name="🪙 Economia",
+            value=(
+                f"🪙 Coins: **{player['coins']}**"
+            ),
+            inline=True
+        )
+
+        # =========================
+        # COLEÇÃO
+        # =========================
+
+        colecao = format_medals(
+            player["medals"]
+        )
+
+        embed.add_field(
+            name="🏅 COLEÇÃO DE MEDALHAS",
+            value=colecao,
+            inline=False
+        )
+
+        # =========================
+        # SEASONS
+        # =========================
+
+        seasonwins = player[
+            "seasonwins"
+        ]
+
+        if seasonwins:
+
+            texto_seasons = "\n".join(
+                f"🏁 {season}"
+                for season in seasonwins[-10:]
+            )
+
+        else:
+
+            texto_seasons = (
+                "Nenhuma season vencida."
+            )
+
+        embed.add_field(
+            name="🏁 Seasons",
+            value=texto_seasons,
+            inline=False
+        )
+
+        embed.set_footer(
+            text="FAL • Ranked System"
+        )
+
+        await ctx.send(
+            embed=embed
+        )
+
 
     # =========================
-    # TOP
+    # ADICIONAR TROFÉUS
     # =========================
 
     @bot.command()
-    async def top(ctx):
+    @commands.has_permissions(
+        administrator=True
+    )
+    async def addtrofeus(
+        ctx,
+        member: discord.Member,
+        quantidade: int
+    ):
 
-        conn = connect_db()
-        cursor = conn.cursor()
-
-        cursor.execute("""
-        SELECT user_id, trofeus, medalhas
-        FROM players
-        ORDER BY medalhas DESC, trofeus DESC
-        """)
-
-        ranking = cursor.fetchall()
-
-        conn.close()
-
-        img = Image.new(
-            "RGB",
-            (900, 700),
-            color=(15,15,15)
+        player = get_player(
+            member.id
         )
 
-        draw = ImageDraw.Draw(img)
+        player["trofeus"] += quantidade
 
-        titulo = ImageFont.truetype(
-            "arial.ttf",
-            40
+        save_player(
+            member.id,
+            player
         )
-
-        fonte = ImageFont.truetype(
-            "arial.ttf",
-            28
-        )
-
-        draw.text(
-            (250,40),
-            "🏆 TOP RANKED",
-            font=titulo,
-            fill=(255,215,0)
-        )
-
-        y = 140
-        pos = 1
-
-        for user_id, trofeus, medalhas in ranking[:10]:
-
-            membro = await bot.fetch_user(
-                int(user_id)
-            )
-
-            texto = (
-                f"#{pos} "
-                f"{membro.name} | "
-                f"{trofeus}🏆 | "
-                f"{medalhas}🎖"
-            )
-
-            draw.text(
-                (70,y),
-                texto,
-                font=fonte,
-                fill=(255,255,255)
-            )
-
-            y += 50
-            pos += 1
-
-        caminho = "leaderboard.png"
-
-        img.save(caminho)
 
         await ctx.send(
-            file=discord.File(caminho)
+            f"🏆 {member.mention} recebeu "
+            f"**{quantidade} troféus**."
         )
 
+
     # =========================
-    # MEDALHAS
+    # REMOVER TROFÉUS
+    # =========================
+
+    @bot.command()
+    @commands.has_permissions(
+        administrator=True
+    )
+    async def removetrofeus(
+        ctx,
+        member: discord.Member,
+        quantidade: int
+    ):
+
+        player = get_player(
+            member.id
+        )
+
+        player["trofeus"] = max(
+            0,
+            player["trofeus"] - quantidade
+        )
+
+        save_player(
+            member.id,
+            player
+        )
+
+        await ctx.send(
+            f"🏆 Foram removidos "
+            f"**{quantidade} troféus** de "
+            f"{member.mention}."
+        )
+
+
+    # =========================
+    # WIN
+    # =========================
+
+    @bot.command()
+    @commands.has_permissions(
+        administrator=True
+    )
+    async def win(
+        ctx,
+        member: discord.Member
+    ):
+
+        player = get_player(
+            member.id
+        )
+
+        player["wins"] += 1
+
+        save_player(
+            member.id,
+            player
+        )
+
+        await ctx.send(
+            f"🥇 Vitória registrada para "
+            f"{member.mention}."
+        )
+
+
+    # =========================
+    # LOSS
+    # =========================
+
+    @bot.command()
+    @commands.has_permissions(
+        administrator=True
+    )
+    async def loss(
+        ctx,
+        member: discord.Member
+    ):
+
+        player = get_player(
+            member.id
+        )
+
+        player["losses"] += 1
+
+        save_player(
+            member.id,
+            player
+        )
+
+        await ctx.send(
+            f"❌ Derrota registrada para "
+            f"{member.mention}."
+        )
+
+
+    # =========================
+    # ADICIONAR MEDALHA
     # =========================
 
     @bot.command()
@@ -648,377 +464,369 @@ def setup_ranked(bot):
     )
     async def add(
         ctx,
-        emoji,
-        member: discord.Member
+        member: discord.Member,
+        medalha
     ):
 
-        player = get_player(member.id)
-
-        player["medals"].append(
-            emoji
+        player = get_player(
+            member.id
         )
 
-        update_player(
+        medalha = medalha.lower()
+
+        if medalha in MEDALS:
+
+            medal = MEDALS[
+                medalha
+            ]["nome"]
+
+        else:
+
+            medal = medalha
+
+        if medal in player["medals"]:
+
+            return await ctx.send(
+                "❌ Este jogador já possui "
+                "essa medalha."
+            )
+
+        player["medals"].append(
+            medal
+        )
+
+        player["medalhas"] = len(
+            player["medals"]
+        )
+
+        save_player(
+            member.id,
+            player
+        )
+
+        info = MEDALS.get(
+            medalha
+        )
+
+        if info:
+
+            display = (
+                f"{info['emoji']} "
+                f"**{info['nome']}**"
+            )
+
+        else:
+
+            display = (
+                f"🏅 **{medal}**"
+            )
+
+        await ctx.send(
+            f"✅ {member.mention} recebeu "
+            f"a medalha {display}."
+        )
+
+
+    # =========================
+    # REMOVER MEDALHA
+    # =========================
+
+    @bot.command()
+    @commands.has_permissions(
+        administrator=True
+    )
+    async def removemedal(
+        ctx,
+        member: discord.Member,
+        medalha
+    ):
+
+        player = get_player(
+            member.id
+        )
+
+        medalha = medalha.lower()
+
+        if medalha in MEDALS:
+
+            medal = MEDALS[
+                medalha
+            ]["nome"]
+
+        else:
+
+            medal = medalha
+
+        if medal not in player["medals"]:
+
+            return await ctx.send(
+                "❌ Este jogador não possui "
+                "essa medalha."
+            )
+
+        player["medals"].remove(
+            medal
+        )
+
+        player["medalhas"] = len(
+            player["medals"]
+        )
+
+        save_player(
             member.id,
             player
         )
 
         await ctx.send(
-            f"🏅 Medalha adicionada "
-            f"para {member.mention}"
+            f"✅ Medalha removida de "
+            f"{member.mention}."
         )
+
 
     # =========================
-    # AMISTOSO
+    # SEASON WIN
     # =========================
-
-    class ResultadoView(View):
-
-        def __init__(
-            self,
-            desafiante,
-            desafiado,
-            valor
-        ):
-
-            super().__init__(timeout=None)
-
-            self.desafiante = desafiante
-            self.desafiado = desafiado
-            self.valor = valor
-
-            self.votos = {}
-
-        async def verificar(
-            self,
-            interaction
-        ):
-
-            if len(self.votos) < 2:
-
-                return
-
-            votos = list(
-                self.votos.values()
-            )
-
-            if votos[0] != votos[1]:
-
-                return await interaction.channel.send(
-                    "❌ Resultados diferentes."
-                )
-
-            if votos[0] == "desafiante":
-
-                vencedor = self.desafiante
-                perdedor = self.desafiado
-
-            else:
-
-                vencedor = self.desafiado
-                perdedor = self.desafiante
-
-            vencedor_data = get_player(
-                vencedor.id
-            )
-
-            perdedor_data = get_player(
-                perdedor.id
-            )
-
-            vencedor_data["trofeus"] += self.valor
-            perdedor_data["trofeus"] -= self.valor
-
-            update_player(
-                vencedor.id,
-                vencedor_data
-            )
-
-            update_player(
-                perdedor.id,
-                perdedor_data
-            )
-
-            await update_roles(
-                vencedor,
-                vencedor_data["trofeus"]
-            )
-
-            await update_roles(
-                perdedor,
-                perdedor_data["trofeus"]
-            )
-
-            embed = discord.Embed(
-                title="🏆 AMISTOSO FINALIZADO",
-                description=(
-                    f"{vencedor.mention} "
-                    f"ganhou +{self.valor}🏆\n\n"
-
-                    f"{perdedor.mention} "
-                    f"perdeu -{self.valor}🏆"
-                ),
-                color=discord.Color.green()
-            )
-
-            await interaction.channel.send(
-                embed=embed
-            )
-
-        @button(
-            label="2x0 desafiante",
-            style=discord.ButtonStyle.green
-        )
-        async def r1(
-            self,
-            interaction,
-            button
-        ):
-
-            self.votos[
-                interaction.user.id
-            ] = "desafiante"
-
-            await interaction.response.send_message(
-                "✅ Resultado enviado.",
-                ephemeral=True
-            )
-
-            await self.verificar(
-                interaction
-            )
-
-        @button(
-            label="2x1 desafiante",
-            style=discord.ButtonStyle.green
-        )
-        async def r2(
-            self,
-            interaction,
-            button
-        ):
-
-            self.votos[
-                interaction.user.id
-            ] = "desafiante"
-
-            await interaction.response.send_message(
-                "✅ Resultado enviado.",
-                ephemeral=True
-            )
-
-            await self.verificar(
-                interaction
-            )
-
-        @button(
-            label="2x0 desafiado",
-            style=discord.ButtonStyle.red
-        )
-        async def r3(
-            self,
-            interaction,
-            button
-        ):
-
-            self.votos[
-                interaction.user.id
-            ] = "desafiado"
-
-            await interaction.response.send_message(
-                "✅ Resultado enviado.",
-                ephemeral=True
-            )
-
-            await self.verificar(
-                interaction
-            )
-
-        @button(
-            label="2x1 desafiado",
-            style=discord.ButtonStyle.red
-        )
-        async def r4(
-            self,
-            interaction,
-            button
-        ):
-
-            self.votos[
-                interaction.user.id
-            ] = "desafiado"
-
-            await interaction.response.send_message(
-                "✅ Resultado enviado.",
-                ephemeral=True
-            )
-
-            await self.verificar(
-                interaction
-            )
-
-    class AceitarView(View):
-
-        def __init__(
-            self,
-            desafiante,
-            desafiado,
-            valor
-        ):
-
-            super().__init__(timeout=None)
-
-            self.desafiante = desafiante
-            self.desafiado = desafiado
-            self.valor = valor
-
-        @button(
-            label="Aceitar",
-            style=discord.ButtonStyle.green
-        )
-        async def aceitar(
-            self,
-            interaction,
-            button
-        ):
-
-            if interaction.user != self.desafiado:
-
-                return
-
-            embed = discord.Embed(
-                title="⚔️ AMISTOSO",
-                description=(
-                    f"{self.desafiante.mention} "
-                    f"🆚 "
-                    f"{self.desafiado.mention}"
-                ),
-                color=discord.Color.orange()
-            )
-
-            embed.add_field(
-                name="🏆 Valor",
-                value=f"{self.valor}🏆"
-            )
-
-            await interaction.response.edit_message(
-                embed=embed,
-                view=ResultadoView(
-                    self.desafiante,
-                    self.desafiado,
-                    self.valor
-                )
-            )
-
-        @button(
-            label="Desistir",
-            style=discord.ButtonStyle.red
-        )
-        async def desistir(
-            self,
-            interaction,
-            button
-        ):
-
-            if interaction.user != self.desafiado:
-
-                return
-
-            await interaction.response.edit_message(
-                content="❌ Amistoso recusado.",
-                embed=None,
-                view=None
-            )
-
-    class DesafioView(View):
-
-        def __init__(self):
-
-            super().__init__(timeout=None)
-
-        @button(
-            label="Desafiar",
-            style=discord.ButtonStyle.blurple
-        )
-        async def desafiar(
-            self,
-            interaction,
-            button
-        ):
-
-            class Modal(
-                discord.ui.Modal,
-                title="⚔️ Desafio"
-            ):
-
-                player = discord.ui.TextInput(
-                    label="ID do player"
-                )
-
-                valor = discord.ui.TextInput(
-                    label="Valor 10-100"
-                )
-
-                async def on_submit(
-                    self,
-                    interaction2
-                ):
-
-                    membro = interaction.guild.get_member(
-                        int(self.player.value)
-                    )
-
-                    valor = int(
-                        self.valor.value
-                    )
-
-                    embed = discord.Embed(
-                        title="⚔️ PROPOSTA",
-                        description=(
-                            f"{interaction.user.mention} "
-                            f"desafiou "
-                            f"{membro.mention}"
-                        ),
-                        color=discord.Color.red()
-                    )
-
-                    embed.add_field(
-                        name="🏆 Valor",
-                        value=f"{valor}🏆"
-                    )
-
-                    await interaction2.response.send_message(
-                        embed=embed,
-                        view=AceitarView(
-                            interaction.user,
-                            membro,
-                            valor
-                        )
-                    )
-
-            await interaction.response.send_modal(
-                Modal()
-            )
 
     @bot.command()
-    async def amistoso(ctx):
+    @commands.has_permissions(
+        administrator=True
+    )
+    async def seasonwin(
+        ctx,
+        member: discord.Member,
+        *,
+        season
+    ):
 
-        if ctx.channel.id != AMISTOSO_CHANNEL:
+        player = get_player(
+            member.id
+        )
+
+        if season in player["seasonwins"]:
 
             return await ctx.send(
-                "❌ Canal incorreto."
+                "❌ Esta season já está "
+                "registrada."
             )
 
+        player["seasonwins"].append(
+            season
+        )
+
+        save_player(
+            member.id,
+            player
+        )
+
+        await ctx.send(
+            f"🏆 {member.mention} venceu "
+            f"a **{season}**!"
+        )
+
+
+    # =========================
+    # PARTIDA
+    # =========================
+
+    @bot.command()
+    @commands.has_permissions(
+        administrator=True
+    )
+    async def partida(
+        ctx,
+        vencedor: discord.Member,
+        perdedor: discord.Member
+    ):
+
+        winner = get_player(
+            vencedor.id
+        )
+
+        loser = get_player(
+            perdedor.id
+        )
+
+        winner["wins"] += 1
+        loser["losses"] += 1
+
+        winner["partidas"].append({
+            "resultado": "win",
+            "adversario": perdedor.id,
+            "data": datetime.now().strftime(
+                "%d/%m/%Y"
+            )
+        })
+
+        loser["partidas"].append({
+            "resultado": "loss",
+            "adversario": vencedor.id,
+            "data": datetime.now().strftime(
+                "%d/%m/%Y"
+            )
+        })
+
+        save_player(
+            vencedor.id,
+            winner
+        )
+
+        save_player(
+            perdedor.id,
+            loser
+        )
+
+        await ctx.send(
+            (
+                f"🏆 Vitória: {vencedor.mention}\n"
+                f"❌ Derrota: {perdedor.mention}"
+            )
+        )
+
+
+    # =========================
+    # PARTIDAS
+    # =========================
+
+    @bot.command()
+    async def partidas(
+        ctx,
+        member: discord.Member = None
+    ):
+
+        if member is None:
+            member = ctx.author
+
+        player = get_player(
+            member.id
+        )
+
+        registros = player[
+            "partidas"
+        ][-15:]
+
         embed = discord.Embed(
-            title="⚔️ SISTEMA AMISTOSO",
-            description=(
-                "Clique abaixo "
-                "para desafiar."
+            title=(
+                f"🎮 Partidas — "
+                f"{member.display_name}"
             ),
             color=discord.Color.blurple()
         )
 
+        if not registros:
+
+            embed.description = (
+                "❌ Nenhuma partida registrada."
+            )
+
+        else:
+
+            texto = ""
+
+            for partida_data in registros:
+
+                if partida_data[
+                    "resultado"
+                ] == "win":
+
+                    emoji = "🟢"
+
+                else:
+
+                    emoji = "🔴"
+
+                texto += (
+                    f"{emoji} "
+                    f"**{partida_data['resultado'].upper()}** "
+                    f"• <@{partida_data['adversario']}> "
+                    f"• {partida_data['data']}\n"
+                )
+
+            embed.description = texto
+
         await ctx.send(
-            embed=embed,
-            view=DesafioView()
-)
+            embed=embed
+        )
+
+
+    # =========================
+    # LEADERBOARD
+    # =========================
+
+    @bot.command()
+    async def leaderboard(ctx):
+
+        conn = connect_db()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+        SELECT user_id, trofeus
+        FROM players
+        ORDER BY trofeus DESC
+        LIMIT 15
+        """)
+
+        rows = cursor.fetchall()
+
+        conn.close()
+
+        embed = discord.Embed(
+            title="🏆 LEADERBOARD",
+            color=discord.Color.gold()
+        )
+
+        if not rows:
+
+            embed.description = (
+                "❌ Nenhum jogador registrado."
+            )
+
+        else:
+
+            texto = ""
+
+            for index, row in enumerate(
+                rows,
+                start=1
+            ):
+
+                uid = row[0]
+                trofeus = row[1]
+
+                if index == 1:
+                    posicao = "🥇"
+
+                elif index == 2:
+                    posicao = "🥈"
+
+                elif index == 3:
+                    posicao = "🥉"
+
+                else:
+                    posicao = f"**{index}.**"
+
+                texto += (
+                    f"{posicao} <@{uid}> "
+                    f"— 🏆 **{trofeus}**\n"
+                )
+
+            embed.description = texto
+
+        embed.set_footer(
+            text="FAL • Ranked"
+        )
+
+        await ctx.send(
+            embed=embed
+        )
+
+
+    # =========================
+    # TOP
+    # =========================
+
+    @bot.command()
+    async def top(ctx):
+
+        await leaderboard.callback(
+            ctx
+        )
