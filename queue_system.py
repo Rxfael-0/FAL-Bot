@@ -20,43 +20,49 @@ QUEUES = {
     "L3": []
 }
 
-# Guarda o horário em que cada jogador saiu/terminou uma fila
 COOLDOWNS = {}
 
-# Evita duas ações simultâneas na mesma fila
 QUEUE_LOCK = asyncio.Lock()
 
 
 # ============================================================
-# EMBEDS
+# EMBED DA FILA
 # ============================================================
 
 def queue_embed(level: str):
+
     players = QUEUES[level]
 
     embed = discord.Embed(
         title=f"🎮 FILA {level}",
         description=(
-            f"Entre na fila para encontrar jogadores do **{level}**.\n\n"
+            f"Entre na fila **{level}** para encontrar "
+            "outros jogadores.\n\n"
             f"👥 **Jogadores:** `{len(players)}/{MAX_PLAYERS}`\n\n"
-            "Clique em **Entrar na fila** para participar.\n"
-            "Clique em **Sair da fila** para sair."
+            "✅ Clique em **Entrar na fila** para participar.\n"
+            "❌ Clique em **Sair da fila** para sair."
         ),
         color=discord.Color.blurple()
     )
 
     if players:
+
         lista = []
 
         for i, user_id in enumerate(players, 1):
-            lista.append(f"**{i}.** <@{user_id}>")
+
+            lista.append(
+                f"**{i}.** <@{user_id}>"
+            )
 
         embed.add_field(
             name="👤 Jogadores na fila",
             value="\n".join(lista),
             inline=False
         )
+
     else:
+
         embed.add_field(
             name="👤 Jogadores na fila",
             value="Ninguém está na fila.",
@@ -75,7 +81,6 @@ def queue_embed(level: str):
 # ============================================================
 
 def get_cooldown(user_id: int):
-    """Retorna quantos segundos faltam de cooldown."""
 
     if user_id not in COOLDOWNS:
         return 0
@@ -83,13 +88,19 @@ def get_cooldown(user_id: int):
     remaining = COOLDOWNS[user_id] - time.time()
 
     if remaining <= 0:
-        COOLDOWNS.pop(user_id, None)
+
+        COOLDOWNS.pop(
+            user_id,
+            None
+        )
+
         return 0
 
     return int(remaining)
 
 
 def format_time(seconds: int):
+
     minutes = seconds // 60
     secs = seconds % 60
 
@@ -100,18 +111,48 @@ def format_time(seconds: int):
 
 
 # ============================================================
+# ATUALIZAR PAINEL
+# ============================================================
+
+async def update_queue_panel(
+    interaction: discord.Interaction,
+    level: str
+):
+
+    try:
+
+        await interaction.message.edit(
+            embed=queue_embed(level),
+            view=QueueView(level)
+        )
+
+    except (
+        discord.NotFound,
+        discord.Forbidden,
+        discord.HTTPException
+    ):
+
+        pass
+
+
+# ============================================================
 # VIEW DA FILA
 # ============================================================
 
 class QueueView(discord.ui.View):
 
     def __init__(self, level: str):
-        super().__init__(timeout=None)
+
+        super().__init__(
+            timeout=None
+        )
+
         self.level = level
 
-    # --------------------------------------------------------
+
+    # ========================================================
     # ENTRAR
-    # --------------------------------------------------------
+    # ========================================================
 
     @discord.ui.button(
         label="Entrar na fila",
@@ -129,7 +170,10 @@ class QueueView(discord.ui.View):
 
         async with QUEUE_LOCK:
 
-            # Verifica se já está em alguma fila
+            # -----------------------------------------------
+            # JÁ ESTÁ EM ALGUMA FILA?
+            # -----------------------------------------------
+
             for queue_name, players in QUEUES.items():
 
                 if user_id in players:
@@ -138,10 +182,16 @@ class QueueView(discord.ui.View):
                         f"❌ Você já está na fila **{queue_name}**.",
                         ephemeral=True
                     )
+
                     return
 
-            # Verifica cooldown
-            cooldown = get_cooldown(user_id)
+            # -----------------------------------------------
+            # COOLDOWN
+            # -----------------------------------------------
+
+            cooldown = get_cooldown(
+                user_id
+            )
 
             if cooldown > 0:
 
@@ -150,43 +200,64 @@ class QueueView(discord.ui.View):
                     f"Tente novamente em **{format_time(cooldown)}**.",
                     ephemeral=True
                 )
+
                 return
 
-            # Verifica limite
+            # -----------------------------------------------
+            # FILA CHEIA
+            # -----------------------------------------------
+
             if len(QUEUES[self.level]) >= MAX_PLAYERS:
 
                 await interaction.response.send_message(
                     f"❌ A fila **{self.level}** está cheia.",
                     ephemeral=True
                 )
+
                 return
 
-            # Adiciona
-            QUEUES[self.level].append(user_id)
+            # -----------------------------------------------
+            # ADICIONAR
+            # -----------------------------------------------
 
-        # Atualiza painel
-        try:
-            await interaction.message.edit(
-                embed=queue_embed(self.level),
-                view=QueueView(self.level)
+            QUEUES[self.level].append(
+                user_id
             )
-        except Exception:
-            pass
+
+            quantidade = len(
+                QUEUES[self.level]
+            )
+
+        # -----------------------------------------------
+        # ATUALIZA PAINEL
+        # -----------------------------------------------
+
+        await update_queue_panel(
+            interaction,
+            self.level
+        )
 
         await interaction.response.send_message(
-            f"✅ Você entrou na fila **{self.level}**!",
+            f"✅ Você entrou na fila **{self.level}**!\n"
+            f"👥 Jogadores: **{quantidade}/{MAX_PLAYERS}**",
             ephemeral=True
         )
 
-        # Verifica se completou
-        if len(QUEUES[self.level]) >= MAX_PLAYERS:
+        # -----------------------------------------------
+        # PARTIDA COMPLETA
+        # -----------------------------------------------
 
-            await start_match(interaction.guild, self.level)
+        if quantidade >= MAX_PLAYERS:
+
+            await start_match(
+                interaction.guild,
+                self.level
+            )
 
 
-    # --------------------------------------------------------
+    # ========================================================
     # SAIR
-    # --------------------------------------------------------
+    # ========================================================
 
     @discord.ui.button(
         label="Sair da fila",
@@ -210,24 +281,26 @@ class QueueView(discord.ui.View):
                     "❌ Você não está nessa fila.",
                     ephemeral=True
                 )
+
                 return
 
-            QUEUES[self.level].remove(user_id)
-
-            # Cooldown de saída
-            COOLDOWNS[user_id] = time.time() + COOLDOWN_SECONDS
-
-        try:
-            await interaction.message.edit(
-                embed=queue_embed(self.level),
-                view=QueueView(self.level)
+            QUEUES[self.level].remove(
+                user_id
             )
-        except Exception:
-            pass
+
+            COOLDOWNS[user_id] = (
+                time.time()
+                + COOLDOWN_SECONDS
+            )
+
+        await update_queue_panel(
+            interaction,
+            self.level
+        )
 
         await interaction.response.send_message(
             f"👋 Você saiu da fila **{self.level}**.\n"
-            f"⏳ Cooldown: **20 minutos**.",
+            "⏳ Cooldown: **20 minutos**.",
             ephemeral=True
         )
 
@@ -236,7 +309,10 @@ class QueueView(discord.ui.View):
 # INICIAR PARTIDA
 # ============================================================
 
-async def start_match(guild: discord.Guild, level: str):
+async def start_match(
+    guild: discord.Guild,
+    level: str
+):
 
     if guild is None:
         return
@@ -246,25 +322,25 @@ async def start_match(guild: discord.Guild, level: str):
         if len(QUEUES[level]) < MAX_PLAYERS:
             return
 
-        players = QUEUES[level][:MAX_PLAYERS]
+        players = QUEUES[level][
+            :MAX_PLAYERS
+        ]
 
-        # Limpa a fila
         QUEUES[level].clear()
 
-    # --------------------------------------------------------
-    # Busca cargo Analista
-    # --------------------------------------------------------
+    # ========================================================
+    # CARGO ANALISTA
+    # ========================================================
 
     analyst_role = discord.utils.find(
-        lambda role: role.name.lower() == "analista",
+        lambda role:
+            role.name.lower() == "analista",
         guild.roles
     )
 
-    # --------------------------------------------------------
-    # Canal de anúncios
-    # --------------------------------------------------------
-
-    announcement_channel = None
+    # ========================================================
+    # CANAL DE ANÚNCIOS
+    # ========================================================
 
     possible_names = [
         "fila",
@@ -275,18 +351,32 @@ async def start_match(guild: discord.Guild, level: str):
         "ranked-queue"
     ]
 
+    announcement_channel = None
+
     for channel in guild.text_channels:
 
         if channel.name.lower() in possible_names:
-            announcement_channel = channel
-            break
 
-    # Se não encontrou, tenta o primeiro canal onde o bot consegue enviar
+            permissions = channel.permissions_for(
+                guild.me
+            )
+
+            if permissions.send_messages:
+
+                announcement_channel = channel
+                break
+
+    # ========================================================
+    # FALLBACK
+    # ========================================================
+
     if announcement_channel is None:
 
         for channel in guild.text_channels:
 
-            permissions = channel.permissions_for(guild.me)
+            permissions = channel.permissions_for(
+                guild.me
+            )
 
             if permissions.send_messages:
 
@@ -296,11 +386,18 @@ async def start_match(guild: discord.Guild, level: str):
     if announcement_channel is None:
         return
 
-    # --------------------------------------------------------
-    # Embed da partida
-    # --------------------------------------------------------
+    # ========================================================
+    # MENTIONS
+    # ========================================================
 
-    mentions = " ".join(f"<@{user_id}>" for user_id in players)
+    mentions = " ".join(
+        f"<@{user_id}>"
+        for user_id in players
+    )
+
+    # ========================================================
+    # EMBED
+    # ========================================================
 
     embed = discord.Embed(
         title="🔥 PARTIDA ENCONTRADA!",
@@ -315,13 +412,13 @@ async def start_match(guild: discord.Guild, level: str):
 
     embed.add_field(
         name="🎮 Fila",
-        value=level,
+        value=f"**{level}**",
         inline=True
     )
 
     embed.add_field(
         name="👥 Jogadores",
-        value=f"{len(players)}/{MAX_PLAYERS}",
+        value=f"**{len(players)}/{MAX_PLAYERS}**",
         inline=True
     )
 
@@ -332,6 +429,7 @@ async def start_match(guild: discord.Guild, level: str):
     content = None
 
     if analyst_role:
+
         content = analyst_role.mention
 
     await announcement_channel.send(
@@ -347,7 +445,9 @@ async def start_match(guild: discord.Guild, level: str):
 class QueueSystem(commands.Cog):
 
     def __init__(self, bot):
+
         self.bot = bot
+
 
     # ========================================================
     # /fila
@@ -355,7 +455,7 @@ class QueueSystem(commands.Cog):
 
     @app_commands.command(
         name="fila",
-        description="Mostra ou cria o painel de uma fila."
+        description="Cria o painel de uma fila Ranked."
     )
     @app_commands.describe(
         nivel="Escolha a fila."
@@ -382,27 +482,46 @@ class QueueSystem(commands.Cog):
         nivel: app_commands.Choice[str]
     ):
 
+        if interaction.guild is None:
+
+            await interaction.response.send_message(
+                "❌ Este comando só pode ser usado em um servidor.",
+                ephemeral=True
+            )
+
+            return
+
         level = nivel.value
 
-        # ----------------------------------------------------
-        # Cargo Analista
-        # ----------------------------------------------------
+        # ====================================================
+        # ANALISTA
+        # ====================================================
 
         analyst_role = discord.utils.find(
-            lambda role: role.name.lower() == "analista",
+            lambda role:
+                role.name.lower() == "analista",
             interaction.guild.roles
         )
 
-        # Apenas Analista pode criar o painel
-        if analyst_role and analyst_role not in interaction.user.roles:
+        if analyst_role:
 
-            await interaction.response.send_message(
-                "❌ Você precisa do cargo **Analista** para criar o painel da fila.",
-                ephemeral=True
-            )
-            return
+            if analyst_role not in interaction.user.roles:
 
-        embed = queue_embed(level)
+                await interaction.response.send_message(
+                    "❌ Você precisa do cargo "
+                    "**Analista** para criar o painel.",
+                    ephemeral=True
+                )
+
+                return
+
+        # ====================================================
+        # PAINEL
+        # ====================================================
+
+        embed = queue_embed(
+            level
+        )
 
         await interaction.response.send_message(
             embed=embed,
@@ -425,11 +544,18 @@ class QueueSystem(commands.Cog):
 
         embed = discord.Embed(
             title="📊 STATUS DAS FILAS",
-            description="Confira o estado atual das filas ranked.",
+            description=(
+                "Confira o estado atual "
+                "das filas Ranked."
+            ),
             color=discord.Color.blurple()
         )
 
-        for level in ["L1", "L2", "L3"]:
+        for level in [
+            "L1",
+            "L2",
+            "L3"
+        ]:
 
             players = QUEUES[level]
 
@@ -441,10 +567,14 @@ class QueueSystem(commands.Cog):
                 )
 
             else:
+
                 lista = "Ninguém"
 
             embed.add_field(
-                name=f"🎮 {level} • {len(players)}/{MAX_PLAYERS}",
+                name=(
+                    f"🎮 {level} • "
+                    f"{len(players)}/{MAX_PLAYERS}"
+                ),
                 value=lista,
                 inline=False
             )
@@ -480,8 +610,18 @@ class QueueSystem(commands.Cog):
             for level, players in QUEUES.items():
 
                 if user_id in players:
+
                     current_queue = level
-                    players.remove(user_id)
+
+                    players.remove(
+                        user_id
+                    )
+
+                    COOLDOWNS[user_id] = (
+                        time.time()
+                        + COOLDOWN_SECONDS
+                    )
+
                     break
 
             if current_queue is None:
@@ -490,9 +630,8 @@ class QueueSystem(commands.Cog):
                     "❌ Você não está em nenhuma fila.",
                     ephemeral=True
                 )
-                return
 
-            COOLDOWNS[user_id] = time.time() + COOLDOWN_SECONDS
+                return
 
         await interaction.response.send_message(
             f"👋 Você saiu da fila **{current_queue}**.\n"
@@ -520,24 +659,33 @@ class QueueSystem(commands.Cog):
 
             if user_id in players:
 
-                position = players.index(user_id) + 1
+                position = (
+                    players.index(user_id)
+                    + 1
+                )
 
                 await interaction.response.send_message(
                     f"🎮 Você está na fila **{level}**.\n"
-                    f"📍 Sua posição: **{position}/{MAX_PLAYERS}**.",
+                    f"📍 Sua posição: "
+                    f"**{position}/{MAX_PLAYERS}**.",
                     ephemeral=True
                 )
+
                 return
 
-        cooldown = get_cooldown(user_id)
+        cooldown = get_cooldown(
+            user_id
+        )
 
         if cooldown > 0:
 
             await interaction.response.send_message(
                 "❌ Você não está em uma fila.\n"
-                f"⏳ Cooldown restante: **{format_time(cooldown)}**.",
+                f"⏳ Cooldown restante: "
+                f"**{format_time(cooldown)}**.",
                 ephemeral=True
             )
+
             return
 
         await interaction.response.send_message(
@@ -550,17 +698,24 @@ class QueueSystem(commands.Cog):
 # SETUP
 # ============================================================
 
-def setup_queue(bot):
+async def setup_queue(bot):
 
-    async def setup():
+    await bot.add_cog(
+        QueueSystem(bot)
+    )
 
-        await bot.add_cog(
-            QueueSystem(bot)
-        )
+    # ========================================================
+    # BOTÕES PERSISTENTES
+    # ========================================================
 
-        # Registra os botões persistentes
-        bot.add_view(QueueView("L1"))
-        bot.add_view(QueueView("L2"))
-        bot.add_view(QueueView("L3"))
+    bot.add_view(
+        QueueView("L1")
+    )
 
-    return setup
+    bot.add_view(
+        QueueView("L2")
+    )
+
+    bot.add_view(
+        QueueView("L3")
+    )
