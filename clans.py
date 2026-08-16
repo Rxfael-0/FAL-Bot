@@ -1,5 +1,5 @@
-```python
 import discord
+from discord import app_commands
 from discord.ext import commands, tasks
 from discord.ui import View, button
 from datetime import datetime
@@ -8,24 +8,35 @@ import json
 
 DATABASE = "database/database.db"
 
-# =========================
+
+# ============================================================
 # SQLITE
-# =========================
+# ============================================================
 
-conn = sqlite3.connect(DATABASE)
-cursor = conn.cursor()
+def connect_db():
+    return sqlite3.connect(DATABASE)
 
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS clans (
-    name TEXT PRIMARY KEY,
-    data TEXT
-)
-""")
 
-conn.commit()
+def setup_clan_database():
+
+    conn = connect_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS clans (
+        name TEXT PRIMARY KEY,
+        data TEXT
+    )
+    """)
+
+    conn.commit()
+    conn.close()
 
 
 def load_clans():
+
+    conn = connect_db()
+    cursor = conn.cursor()
 
     cursor.execute(
         "SELECT name, data FROM clans"
@@ -33,15 +44,23 @@ def load_clans():
 
     rows = cursor.fetchall()
 
+    conn.close()
+
     data = {}
 
     for name, clan_data in rows:
-        data[name] = json.loads(clan_data)
+        try:
+            data[name] = json.loads(clan_data)
+        except json.JSONDecodeError:
+            continue
 
     return data
 
 
 def save_clans(data):
+
+    conn = connect_db()
+    cursor = conn.cursor()
 
     cursor.execute(
         "DELETE FROM clans"
@@ -58,11 +77,12 @@ def save_clans(data):
         )
 
     conn.commit()
+    conn.close()
 
 
-# =========================
+# ============================================================
 # CANAIS
-# =========================
+# ============================================================
 
 INFO_CHANNEL = 1504652700921626716
 CREATE_CHANNEL = 1504654261664092210
@@ -74,9 +94,10 @@ INACTIVE_CHANNEL = 1504655449796902912
 
 CLAN_CATEGORY = 1504651417229463613
 
-# =========================
+
+# ============================================================
 # CARGOS
-# =========================
+# ============================================================
 
 ANALISTA = 1399531186472226898
 LEADER_ROLE = 1399181565162033243
@@ -84,9 +105,9 @@ LEADER_ROLE = 1399181565162033243
 MAX_MEMBERS = 5
 
 
-# =========================
+# ============================================================
 # ATUALIZAR PAINEL
-# =========================
+# ============================================================
 
 async def update_clan_panel(
     bot,
@@ -115,7 +136,6 @@ async def update_clan_panel(
         )
 
     except Exception:
-
         return
 
     membros = ""
@@ -159,17 +179,17 @@ async def update_clan_panel(
 
     embed.add_field(
         name="🏆 Vitórias",
-        value=clan["wins"]
+        value=str(clan["wins"])
     )
 
     embed.add_field(
         name="❌ Derrotas",
-        value=clan["losses"]
+        value=str(clan["losses"])
     )
 
     embed.add_field(
         name="🏳 Desistências",
-        value=clan["surrenders"]
+        value=str(clan["surrenders"])
     )
 
     embed.add_field(
@@ -194,9 +214,9 @@ async def update_clan_panel(
     )
 
 
-# =========================
+# ============================================================
 # REQUEST VIEW
-# =========================
+# ============================================================
 
 class RequestView(View):
 
@@ -206,7 +226,9 @@ class RequestView(View):
         user_id
     ):
 
-        super().__init__(timeout=None)
+        super().__init__(
+            timeout=None
+        )
 
         self.clan_name = clan_name
         self.user_id = user_id
@@ -290,7 +312,10 @@ class RequestView(View):
 
         if role:
 
-            await membro.add_roles(role)
+            try:
+                await membro.add_roles(role)
+            except discord.Forbidden:
+                pass
 
         await update_clan_panel(
             interaction.client,
@@ -323,9 +348,9 @@ class RequestView(View):
         )
 
 
-# =========================
+# ============================================================
 # WAR VIEW
-# =========================
+# ============================================================
 
 class WarView(View):
 
@@ -335,7 +360,9 @@ class WarView(View):
         clan2
     ):
 
-        super().__init__(timeout=7200)
+        super().__init__(
+            timeout=7200
+        )
 
         self.clan1 = clan1
         self.clan2 = clan2
@@ -390,6 +417,7 @@ class WarView(View):
         if self.clan2 in data:
 
             data[self.clan2]["surrenders"] += 1
+
             save_clans(data)
 
         await interaction.response.edit_message(
@@ -399,9 +427,9 @@ class WarView(View):
         )
 
 
-# =========================
+# ============================================================
 # REGISTRAR RESULTADO
-# =========================
+# ============================================================
 
 class RegistrarResultadoView(View):
 
@@ -411,7 +439,9 @@ class RegistrarResultadoView(View):
         clan2
     ):
 
-        super().__init__(timeout=None)
+        super().__init__(
+            timeout=None
+        )
 
         self.clan1 = clan1
         self.clan2 = clan2
@@ -434,9 +464,9 @@ class RegistrarResultadoView(View):
         )
 
 
-# =========================
+# ============================================================
 # RESULTADO VIEW
-# =========================
+# ============================================================
 
 class ResultadoView(View):
 
@@ -446,7 +476,9 @@ class ResultadoView(View):
         clan2
     ):
 
-        super().__init__(timeout=None)
+        super().__init__(
+            timeout=None
+        )
 
         self.clan1 = clan1
         self.clan2 = clan2
@@ -527,6 +559,16 @@ class ResultadoView(View):
             view=None
         )
 
+    def is_analista(
+        self,
+        interaction
+    ):
+
+        return discord.utils.get(
+            interaction.user.roles,
+            id=ANALISTA
+        ) is not None
+
     @button(
         label="2x0 desafiante",
         style=discord.ButtonStyle.green
@@ -537,10 +579,7 @@ class ResultadoView(View):
         button: discord.ui.Button
     ):
 
-        if not discord.utils.get(
-            interaction.user.roles,
-            id=ANALISTA
-        ):
+        if not self.is_analista(interaction):
 
             return await interaction.response.send_message(
                 "❌ Apenas analistas podem registrar.",
@@ -563,10 +602,7 @@ class ResultadoView(View):
         button: discord.ui.Button
     ):
 
-        if not discord.utils.get(
-            interaction.user.roles,
-            id=ANALISTA
-        ):
+        if not self.is_analista(interaction):
 
             return await interaction.response.send_message(
                 "❌ Apenas analistas podem registrar.",
@@ -589,10 +625,7 @@ class ResultadoView(View):
         button: discord.ui.Button
     ):
 
-        if not discord.utils.get(
-            interaction.user.roles,
-            id=ANALISTA
-        ):
+        if not self.is_analista(interaction):
 
             return await interaction.response.send_message(
                 "❌ Apenas analistas podem registrar.",
@@ -615,10 +648,7 @@ class ResultadoView(View):
         button: discord.ui.Button
     ):
 
-        if not discord.utils.get(
-            interaction.user.roles,
-            id=ANALISTA
-        ):
+        if not self.is_analista(interaction):
 
             return await interaction.response.send_message(
                 "❌ Apenas analistas podem registrar.",
@@ -632,22 +662,64 @@ class ResultadoView(View):
         )
 
 
-# =========================
-# SETUP
-# =========================
+# ============================================================
+# COG
+# ============================================================
 
-def setup_clans(bot):
+class Clans(commands.Cog):
 
-    @bot.command()
-    async def criarcla(
-        ctx,
-        nome
+    def __init__(
+        self,
+        bot
     ):
 
-        if ctx.channel.id != CREATE_CHANNEL:
+        self.bot = bot
 
-            return await ctx.send(
-                "❌ Canal incorreto."
+        setup_clan_database()
+
+        if not check_inactive.is_running():
+
+            check_inactive.start()
+
+
+    # ========================================================
+    # /criarcla
+    # ========================================================
+
+    @app_commands.command(
+        name="criarcla",
+        description="Cria um novo clã."
+    )
+    @app_commands.describe(
+        nome="Nome do clã."
+    )
+    async def criarcla(
+        self,
+        interaction: discord.Interaction,
+        nome: str
+    ):
+
+        if interaction.channel_id != CREATE_CHANNEL:
+
+            return await interaction.response.send_message(
+                "❌ Este comando só pode ser usado no canal correto.",
+                ephemeral=True
+            )
+
+        nome = nome.strip()
+
+        if not nome:
+
+            return await interaction.response.send_message(
+                "❌ Informe um nome válido.",
+                ephemeral=True
+            )
+
+        if len(nome) > 30:
+
+            return await interaction.response.send_message(
+                "❌ O nome do clã pode ter no máximo 30 caracteres.",
+                ephemeral=True
             )
 
         data = load_clans()
@@ -656,25 +728,29 @@ def setup_clans(bot):
 
             if clan_nome.lower() == nome.lower():
 
-                return await ctx.send(
-                    "❌ Clã já existe."
+                return await interaction.response.send_message(
+                    "❌ Clã já existe.",
+                    ephemeral=True
                 )
 
         for clan in data.values():
 
-            if str(ctx.author.id) in clan["members"]:
+            if str(interaction.user.id) in clan["members"]:
 
-                return await ctx.send(
-                    "❌ Você já está em um clã."
+                return await interaction.response.send_message(
+                    "❌ Você já está em um clã.",
+                    ephemeral=True
                 )
 
-        role = await ctx.guild.create_role(
+        await interaction.response.defer()
+
+        role = await interaction.guild.create_role(
             name=nome
         )
 
         overwrites = {
 
-            ctx.guild.default_role:
+            interaction.guild.default_role:
             discord.PermissionOverwrite(
                 view_channel=False
             ),
@@ -686,7 +762,7 @@ def setup_clans(bot):
                 read_message_history=True
             ),
 
-            ctx.author:
+            interaction.user:
             discord.PermissionOverwrite(
                 view_channel=True,
                 send_messages=True,
@@ -695,11 +771,11 @@ def setup_clans(bot):
         }
 
         categoria = discord.utils.get(
-            ctx.guild.categories,
+            interaction.guild.categories,
             id=CLAN_CATEGORY
         )
 
-        canal = await ctx.guild.create_text_channel(
+        canal = await interaction.guild.create_text_channel(
             name=f"🏰・{nome.lower()}",
             category=categoria,
             overwrites=overwrites
@@ -707,11 +783,11 @@ def setup_clans(bot):
 
         data[nome] = {
 
-            "leader": str(ctx.author.id),
+            "leader": str(interaction.user.id),
             "coleader": None,
 
             "members": [
-                str(ctx.author.id)
+                str(interaction.user.id)
             ],
 
             "wins": 0,
@@ -737,26 +813,27 @@ def setup_clans(bot):
 
         save_clans(data)
 
-        await ctx.author.add_roles(
-            role
-        )
+        try:
+            await interaction.user.add_roles(role)
+        except discord.Forbidden:
+            pass
 
         embed = discord.Embed(
             title=f"🏰 {nome}",
             description=(
                 f"Clã criado por "
-                f"{ctx.author.mention}"
+                f"{interaction.user.mention}"
             ),
             color=discord.Color.red()
         )
 
-        canal_lista = bot.get_channel(
+        canal_lista = self.bot.get_channel(
             LIST_CHANNEL
         )
 
         if not canal_lista:
 
-            return await ctx.send(
+            return await interaction.followup.send(
                 "⚠️ Clã criado, mas o canal de lista não foi encontrado."
             )
 
@@ -764,33 +841,50 @@ def setup_clans(bot):
             embed=embed
         )
 
-        data[nome]["panel_message"] = msg.id
+        data = load_clans()
 
-        save_clans(data)
+        if nome in data:
+
+            data[nome]["panel_message"] = msg.id
+
+            save_clans(data)
 
         await update_clan_panel(
-            bot,
-            ctx.guild,
+            self.bot,
+            interaction.guild,
             nome
         )
 
-        await ctx.send(
-            f"✅ Clã {nome} criado."
+        await interaction.followup.send(
+            f"✅ Clã **{nome}** criado."
         )
 
-    @bot.command()
+
+    # ========================================================
+    # /deletarcla
+    # ========================================================
+
+    @app_commands.command(
+        name="deletarcla",
+        description="Deleta um clã."
+    )
+    @app_commands.describe(
+        nome="Nome do clã que deseja deletar."
+    )
+    @app_commands.default_permissions(
+        administrator=True
+    )
     async def deletarcla(
-        ctx,
-        nome
+        self,
+        interaction: discord.Interaction,
+        nome: str
     ):
 
-        if not discord.utils.get(
-            ctx.author.roles,
-            id=LEADER_ROLE
-        ):
+        if not interaction.user.guild_permissions.administrator:
 
-            return await ctx.send(
-                "❌ Sem permissão."
+            return await interaction.response.send_message(
+                "❌ Você precisa ser administrador.",
+                ephemeral=True
             )
 
         data = load_clans()
@@ -806,11 +900,12 @@ def setup_clans(bot):
 
         if not clan_real:
 
-            return await ctx.send(
-                "❌ Clã não encontrado."
+            return await interaction.response.send_message(
+                "❌ Clã não encontrado.",
+                ephemeral=True
             )
 
-        guild = ctx.guild
+        guild = interaction.guild
 
         cargo = guild.get_role(
             data[clan_real]["role_id"]
@@ -822,54 +917,92 @@ def setup_clans(bot):
 
         if canal:
 
-            await canal.delete()
+            try:
+                await canal.delete()
+            except discord.Forbidden:
+                pass
 
         if cargo:
 
-            await cargo.delete()
+            try:
+                await cargo.delete()
+            except discord.Forbidden:
+                pass
 
         del data[clan_real]
 
         save_clans(data)
 
-        await ctx.send(
-            f"🗑️ Clã {clan_real} deletado."
+        await interaction.response.send_message(
+            f"🗑️ Clã **{clan_real}** deletado."
         )
 
-    @bot.command()
+
+    # ========================================================
+    # /coleader
+    # ========================================================
+
+    @app_commands.command(
+        name="coleader",
+        description="Define o co-líder do seu clã."
+    )
+    @app_commands.describe(
+        membro="Membro que será o co-líder."
+    )
     async def coleader(
-        ctx,
-        member: discord.Member
+        self,
+        interaction: discord.Interaction,
+        membro: discord.Member
     ):
 
         data = load_clans()
 
         for clan_name, clan in data.items():
 
-            if clan["leader"] == str(ctx.author.id):
+            if clan["leader"] == str(interaction.user.id):
 
-                clan["coleader"] = str(member.id)
+                if str(membro.id) not in clan["members"]:
+
+                    return await interaction.response.send_message(
+                        "❌ O usuário precisa estar no seu clã.",
+                        ephemeral=True
+                    )
+
+                clan["coleader"] = str(membro.id)
 
                 save_clans(data)
 
                 await update_clan_panel(
-                    bot,
-                    ctx.guild,
+                    self.bot,
+                    interaction.guild,
                     clan_name
                 )
 
-                return await ctx.send(
-                    f"✅ {member.mention} virou co-líder."
+                return await interaction.response.send_message(
+                    f"✅ {membro.mention} virou co-líder."
                 )
 
-        await ctx.send(
-            "❌ Você não é líder de nenhum clã."
+        await interaction.response.send_message(
+            "❌ Você não é líder de nenhum clã.",
+            ephemeral=True
         )
 
-    @bot.command()
+
+    # ========================================================
+    # /solicitar
+    # ========================================================
+
+    @app_commands.command(
+        name="solicitar",
+        description="Solicita entrada em um clã."
+    )
+    @app_commands.describe(
+        clan="Nome do clã que deseja entrar."
+    )
     async def solicitar(
-        ctx,
-        clan_name
+        self,
+        interaction: discord.Interaction,
+        clan: str
     ):
 
         data = load_clans()
@@ -878,42 +1011,52 @@ def setup_clans(bot):
 
         for nome in data:
 
-            if nome.lower() == clan_name.lower():
+            if nome.lower() == clan.lower():
 
                 clan_real = nome
                 break
 
         if not clan_real:
 
-            return await ctx.send(
-                "❌ Clã não encontrado."
+            return await interaction.response.send_message(
+                "❌ Clã não encontrado.",
+                ephemeral=True
             )
 
-        for clan in data.values():
+        for clan_data in data.values():
 
-            if str(ctx.author.id) in clan["members"]:
+            if str(interaction.user.id) in clan_data["members"]:
 
-                return await ctx.send(
-                    "❌ Você já está em um clã."
+                return await interaction.response.send_message(
+                    "❌ Você já está em um clã.",
+                    ephemeral=True
                 )
+
+        if len(data[clan_real]["members"]) >= MAX_MEMBERS:
+
+            return await interaction.response.send_message(
+                "❌ Este clã já está cheio.",
+                ephemeral=True
+            )
 
         embed = discord.Embed(
             title="📩 Solicitação",
             description=(
-                f"{ctx.author.mention} "
-                f"quer entrar em {clan_real}"
+                f"{interaction.user.mention} "
+                f"quer entrar em **{clan_real}**."
             ),
             color=discord.Color.blurple()
         )
 
-        canal = bot.get_channel(
+        canal = self.bot.get_channel(
             REQUEST_CHANNEL
         )
 
         if not canal:
 
-            return await ctx.send(
-                "❌ Canal de solicitações não encontrado."
+            return await interaction.response.send_message(
+                "❌ Canal de solicitações não encontrado.",
+                ephemeral=True
             )
 
         await canal.send(
@@ -923,56 +1066,72 @@ def setup_clans(bot):
             embed=embed,
             view=RequestView(
                 clan_real,
-                ctx.author.id
+                interaction.user.id
             )
         )
 
-        await ctx.send(
-            "✅ Solicitação enviada."
+        await interaction.response.send_message(
+            "✅ Solicitação enviada.",
+            ephemeral=True
         )
 
-    @bot.command()
+
+    # ========================================================
+    # /clanwar
+    # ========================================================
+
+    @app_commands.command(
+        name="clanwar",
+        description="Desafia outro clã para uma ClanWar."
+    )
+    @app_commands.describe(
+        clan="Nome do clã que deseja desafiar."
+    )
     async def clanwar(
-        ctx,
-        clan_name
+        self,
+        interaction: discord.Interaction,
+        clan: str
     ):
 
         data = load_clans()
 
         meu_cla = None
 
-        for nome, clan in data.items():
+        for nome, clan_data in data.items():
 
-            if str(ctx.author.id) in clan["members"]:
+            if str(interaction.user.id) in clan_data["members"]:
 
                 meu_cla = nome
                 break
 
         if not meu_cla:
 
-            return await ctx.send(
-                "❌ Você não possui clã."
+            return await interaction.response.send_message(
+                "❌ Você não possui clã.",
+                ephemeral=True
             )
 
         clan_real = None
 
         for nome in data:
 
-            if nome.lower() == clan_name.lower():
+            if nome.lower() == clan.lower():
 
                 clan_real = nome
                 break
 
         if not clan_real:
 
-            return await ctx.send(
-                "❌ Clã não existe."
+            return await interaction.response.send_message(
+                "❌ Clã não existe.",
+                ephemeral=True
             )
 
         if meu_cla == clan_real:
 
-            return await ctx.send(
-                "❌ Você não pode desafiar seu próprio clã."
+            return await interaction.response.send_message(
+                "❌ Você não pode desafiar seu próprio clã.",
+                ephemeral=True
             )
 
         embed = discord.Embed(
@@ -985,14 +1144,15 @@ def setup_clans(bot):
             color=discord.Color.red()
         )
 
-        canal = bot.get_channel(
+        canal = self.bot.get_channel(
             WAR_CHANNEL
         )
 
         if not canal:
 
-            return await ctx.send(
-                "❌ Canal de ClanWar não encontrado."
+            return await interaction.response.send_message(
+                "❌ Canal de ClanWar não encontrado.",
+                ephemeral=True
             )
 
         await canal.send(
@@ -1003,12 +1163,24 @@ def setup_clans(bot):
             )
         )
 
-        await ctx.send(
-            "✅ Desafio enviado."
+        await interaction.response.send_message(
+            "✅ Desafio enviado.",
+            ephemeral=True
         )
 
-    @bot.command()
-    async def topclans(ctx):
+
+    # ========================================================
+    # /topclans
+    # ========================================================
+
+    @app_commands.command(
+        name="topclans",
+        description="Mostra os melhores clãs."
+    )
+    async def topclans(
+        self,
+        interaction: discord.Interaction
+    ):
 
         data = load_clans()
 
@@ -1025,16 +1197,15 @@ def setup_clans(bot):
 
         texto = ""
 
-        pos = 1
-
-        for nome, clan in ranking[:10]:
+        for pos, (nome, clan) in enumerate(
+            ranking[:10],
+            1
+        ):
 
             texto += (
-                f"#{pos} • {nome}\n"
+                f"**#{pos} • {nome}**\n"
                 f"🏆 {clan['wins']} vitórias\n\n"
             )
-
-            pos += 1
 
         if texto == "":
 
@@ -1042,14 +1213,14 @@ def setup_clans(bot):
 
         embed.description = texto
 
-        await ctx.send(
+        await interaction.response.send_message(
             embed=embed
         )
 
 
-# =========================
+# ============================================================
 # CLÃS INATIVOS
-# =========================
+# ============================================================
 
 @tasks.loop(hours=24)
 async def check_inactive():
@@ -1078,9 +1249,22 @@ async def check_inactive():
             if clan["status"] != "💤 Inativo":
 
                 clan["status"] = "💤 Inativo"
+
                 alterado = True
 
     if alterado:
 
         save_clans(data)
-```
+
+
+# ============================================================
+# SETUP
+# ============================================================
+
+async def setup_clans(bot):
+
+    setup_clan_database()
+
+    await bot.add_cog(
+        Clans(bot)
+    )
