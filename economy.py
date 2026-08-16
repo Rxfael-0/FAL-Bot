@@ -1,7 +1,6 @@
 import discord
-from discord.ext import commands, tasks
+from discord import app_commands
 import sqlite3
-import json
 
 DATABASE = "database/database.db"
 
@@ -14,7 +13,6 @@ MEGAVIP = 1460867926948057202
 # =========================
 
 def connect_db():
-
     return sqlite3.connect(DATABASE)
 
 
@@ -37,7 +35,6 @@ def create_player(uid):
         hall,
         partidas
     )
-
     VALUES (
         ?, 0, 0, 0, 0, 0, 0,
         '[]', '[]', '[]', '[]'
@@ -55,19 +52,17 @@ def get_coins(uid):
     conn = connect_db()
     cursor = conn.cursor()
 
-    cursor.execute(
-        "SELECT coins FROM players WHERE user_id = ?",
-        (int(uid),)
-    )
+    cursor.execute("""
+    SELECT coins
+    FROM players
+    WHERE user_id = ?
+    """, (int(uid),))
 
     result = cursor.fetchone()
 
     conn.close()
 
-    if result is None:
-        return 0
-
-    return result[0]
+    return result[0] if result else 0
 
 
 def add_coins(uid, quantidade):
@@ -79,9 +74,7 @@ def add_coins(uid, quantidade):
 
     cursor.execute("""
     UPDATE players
-
     SET coins = coins + ?
-
     WHERE user_id = ?
     """, (
         quantidade,
@@ -98,68 +91,95 @@ def add_coins(uid, quantidade):
 
 def setup_economy(bot):
 
-    @bot.command()
+    # =========================
+    # MOEDAS
+    # =========================
+
+    @bot.tree.command(
+        name="moedas",
+        description="Veja a quantidade de coins de um jogador."
+    )
+    @app_commands.describe(
+        membro="Jogador que deseja consultar."
+    )
     async def moedas(
-        ctx,
-        member: discord.Member = None
+        interaction: discord.Interaction,
+        membro: discord.Member = None
     ):
 
-        if member is None:
-            member = ctx.author
+        if membro is None:
+            membro = interaction.user
 
         coins = get_coins(
-            member.id
+            membro.id
         )
 
         embed = discord.Embed(
             title="🪙 Coins",
             description=(
-                f"{member.mention} possui "
+                f"{membro.mention} possui "
                 f"**{coins}🪙**"
             ),
             color=discord.Color.gold()
         )
 
-        await ctx.send(
+        embed.set_thumbnail(
+            url=membro.display_avatar.url
+        )
+
+        await interaction.response.send_message(
             embed=embed
         )
 
 
     # =========================
-    # ADD COIN
+    # ADDCOIN
     # =========================
 
-    @bot.command()
-    @commands.has_permissions(
+    @bot.tree.command(
+        name="addcoin",
+        description="Adiciona coins a um jogador."
+    )
+    @app_commands.describe(
+        quantidade="Quantidade de coins.",
+        membro="Jogador que receberá as coins."
+    )
+    @app_commands.checks.has_permissions(
         administrator=True
     )
     async def addcoin(
-        ctx,
+        interaction: discord.Interaction,
         quantidade: int,
-        member: discord.Member
+        membro: discord.Member
     ):
 
         if quantidade <= 0:
 
-            return await ctx.send(
-                "❌ A quantidade precisa ser maior que 0."
+            return await interaction.response.send_message(
+                "❌ A quantidade precisa ser maior que 0.",
+                ephemeral=True
             )
 
         add_coins(
-            member.id,
+            membro.id,
             quantidade
+        )
+
+        novo_saldo = get_coins(
+            membro.id
         )
 
         embed = discord.Embed(
             title="🪙 Coins adicionadas",
             description=(
-                f"{member.mention} recebeu "
-                f"**+{quantidade}🪙**"
+                f"{membro.mention} recebeu "
+                f"**+{quantidade}🪙**\n\n"
+                f"💰 Novo saldo: **{novo_saldo}🪙**"
             ),
             color=discord.Color.green()
         )
 
-        await ctx.send(
+        await interaction.response.send_message(
             embed=embed
         )
 
@@ -168,8 +188,13 @@ def setup_economy(bot):
     # PRICES
     # =========================
 
-    @bot.command()
-    async def prices(ctx):
+    @bot.tree.command(
+        name="prices",
+        description="Veja a tabela de conversão de Robux e PIX para coins."
+    )
+    async def prices(
+        interaction: discord.Interaction
+    ):
 
         embed = discord.Embed(
             title="💸 Tabela Coins",
@@ -177,7 +202,6 @@ def setup_economy(bot):
         )
 
         embed.description = (
-
             "💰 **ROBUX → MOEDAS**\n\n"
 
             "50 Robux ➜ 20🪙\n"
@@ -200,128 +224,114 @@ def setup_economy(bot):
             "R$40 ➜ 1700🪙\n"
             "R$50 ➜ 2300🪙\n\n"
 
-            "✨ PIX possui melhor custo benefício."
+            "✨ **PIX possui melhor custo benefício.**"
         )
 
-        await ctx.send(
+        embed.set_footer(
+            text="FAL • Economy"
+        )
+
+        await interaction.response.send_message(
             embed=embed
         )
 
 
     # =========================
-    # MENSAL MANUAL
+    # MENSAL
     # =========================
 
-    @bot.command()
-    @commands.has_permissions(
+    @bot.tree.command(
+        name="mensal",
+        description="Entrega as coins mensais para VIP e MEGAVIP."
+    )
+    @app_commands.checks.has_permissions(
         administrator=True
     )
-    async def mensal(ctx):
+    async def mensal(
+        interaction: discord.Interaction
+    ):
 
-        conn = connect_db()
-        cursor = conn.cursor()
+        if interaction.guild is None:
 
-        entregues = 0
-
-        for member in ctx.guild.members:
-
-            if member.bot:
-                continue
-
-            create_player(
-                member.id
+            return await interaction.response.send_message(
+                "❌ Este comando só pode ser usado em um servidor.",
+                ephemeral=True
             )
 
+        entregues_vip = 0
+        entregues_megavip = 0
+
+        for member in interaction.guild.members:
+
+            # MEGAVIP
             if discord.utils.get(
                 member.roles,
                 id=MEGAVIP
             ):
 
-                cursor.execute("""
-                UPDATE players
-                SET coins = coins + 20
-                WHERE user_id = ?
-                """, (member.id,))
+                add_coins(
+                    member.id,
+                    20
+                )
 
-                entregues += 20
+                entregues_megavip += 1
 
+            # VIP
             elif discord.utils.get(
                 member.roles,
                 id=VIP
             ):
 
-                cursor.execute("""
-                UPDATE players
-                SET coins = coins + 4
-                WHERE user_id = ?
-                """, (member.id,))
+                add_coins(
+                    member.id,
+                    4
+                )
 
-                entregues += 4
+                entregues_vip += 1
 
-        conn.commit()
-        conn.close()
+        embed = discord.Embed(
+            title="💎 Coins mensais entregues",
+            description=(
+                "O pagamento mensal foi concluído.\n\n"
+                f"💎 MEGAVIP: **{entregues_megavip}** membros\n"
+                f"⭐ VIP: **{entregues_vip}** membros"
+            ),
+            color=discord.Color.green()
+        )
 
-        await ctx.send(
-            f"✅ Coins mensais entregues.\n"
-            f"🪙 Total distribuído: {entregues}"
+        await interaction.response.send_message(
+            embed=embed
         )
 
 
 # =========================
-# MENSAL AUTOMÁTICO
+# ERROS DE PERMISSÃO
 # =========================
 
-@tasks.loop(hours=720)
-async def mensal_auto(bot):
+async def economy_error(
+    interaction: discord.Interaction,
+    error
+):
 
-    if not bot.guilds:
-        return
+    if isinstance(
+        error,
+        app_commands.errors.MissingPermissions
+    ):
 
-    guild = bot.guilds[0]
+        if interaction.response.is_done():
 
-    conn = connect_db()
-    cursor = conn.cursor()
+            await interaction.followup.send(
+                "❌ Você precisa ser administrador para usar este comando.",
+                ephemeral=True
+            )
 
-    entregues = 0
+        else:
 
-    for member in guild.members:
+            await interaction.response.send_message(
+                "❌ Você precisa ser administrador para usar este comando.",
+                ephemeral=True
+            )
 
-        if member.bot:
-            continue
+    else:
 
-        create_player(
-            member.id
-        )
-
-        if discord.utils.get(
-            member.roles,
-            id=MEGAVIP
-        ):
-
-            cursor.execute("""
-            UPDATE players
-            SET coins = coins + 20
-            WHERE user_id = ?
-            """, (member.id,))
-
-            entregues += 20
-
-        elif discord.utils.get(
-            member.roles,
-            id=VIP
-        ):
-
-            cursor.execute("""
-            UPDATE players
-            SET coins = coins + 4
-            WHERE user_id = ?
-            """, (member.id,))
-
-            entregues += 4
-
-    conn.commit()
-    conn.close()
-
-    print(
-        f"💎 Coins mensais entregues: {entregues}"
-    )
+        raise error
