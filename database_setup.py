@@ -1,23 +1,23 @@
 import sqlite3
 import os
 
+# =========================
+# DATABASE
+# =========================
+
 os.makedirs("database", exist_ok=True)
 
-conn = sqlite3.connect(
-    "database/database.db"
-)
+DATABASE = "database/database.db"
 
+conn = sqlite3.connect(DATABASE)
 cursor = conn.cursor()
 
-cursor.execute("""
-
-DROP TABLE IF EXISTS players
-
-""")
+# =========================
+# PLAYERS
+# =========================
 
 cursor.execute("""
-
-CREATE TABLE players (
+CREATE TABLE IF NOT EXISTS players (
 
     user_id INTEGER PRIMARY KEY,
 
@@ -36,38 +36,58 @@ CREATE TABLE players (
     partidas TEXT DEFAULT '[]'
 
 )
-
 """)
 
-cursor.execute("""
+# =========================
+# CLANS
+# =========================
 
+cursor.execute("""
 CREATE TABLE IF NOT EXISTS clans (
 
     name TEXT PRIMARY KEY,
-
-    leader TEXT,
-    coleader TEXT,
-
-    wins INTEGER DEFAULT 0,
-    losses INTEGER DEFAULT 0,
-    surrenders INTEGER DEFAULT 0,
-
-    status TEXT,
-    last_activity TEXT,
-
-    role_id INTEGER,
-    channel_id INTEGER,
-
-    panel_channel INTEGER,
-    panel_message INTEGER,
-
-    logo TEXT
+    data TEXT
 
 )
-
 """)
+
+# =========================
+# HALL DA FAMA
+# =========================
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS hall (
+
+    id TEXT PRIMARY KEY,
+    data TEXT
+
+)
+""")
+
+# =========================
+# TOURNAMENT
+# =========================
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS tournament (
+
+    user_id INTEGER PRIMARY KEY,
+
+    tipo TEXT,
+    nome TEXT,
+    roblox TEXT,
+    convidado TEXT,
+
+    validado INTEGER DEFAULT 0
+
+)
+""")
+
+# =========================
+# SALVAR
+# =========================
 
 conn.commit()
 conn.close()
 
-print("✅ Banco criado.")
+print("✅ Banco de dados carregado.")
