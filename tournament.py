@@ -1,454 +1,161 @@
+# tournament.py
+
 import discord
+from discord import app_commands
 from discord.ext import commands
-from discord.ui import View, Select, Modal, TextInput
-import sqlite3
 
-DATABASE = "database/database.db"
-
-REGISTRO_CHANNEL = 1463346916120068106
-LOGS_CHANNEL = 1463389943995830445
-VALIDADOS_CHANNEL = 1508246884442050690
-
-VIP_ROLE = 1460867416081825904
-MEGAVIP_ROLE = 1460867926948057202
-
-MAX_VAGAS = 32
+import json
+import os
+import random
 
 
-# =========================
-# SQLITE
-# =========================
+# ============================================================
+# CONFIGURAÇÕES
+# ============================================================
 
-def connect_db():
-    return sqlite3.connect(DATABASE)
+DATABASE_FOLDER = "database"
+TOURNAMENT_FILE = os.path.join(
+    DATABASE_FOLDER,
+    "tournament.json"
+)
 
-
-def setup_database():
-
-    conn = connect_db()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS tournament (
-
-        user_id INTEGER PRIMARY KEY,
-
-        tipo TEXT,
-        nome TEXT,
-        roblox TEXT,
-        convidado TEXT,
-
-        validado INTEGER DEFAULT 0
-
-    )
-    """)
-
-    conn.commit()
-    conn.close()
+MAX_PLAYERS = 32
 
 
-setup_database()
+# ============================================================
+# BANCO DE DADOS
+# ============================================================
+
+def ensure_database():
+
+    os.makedirs(DATABASE_FOLDER, exist_ok=True)
+
+    if not os.path.exists(TOURNAMENT_FILE):
+
+        data = {
+            "active": False,
+            "name": "",
+            "max_players": MAX_PLAYERS,
+            "players": [],
+            "matches": [],
+            "champion": None
+        }
+
+        save_tournament(data)
 
 
-# =========================
-# INSCRITOS
-# =========================
+def load_tournament():
 
-def total_inscritos():
+    ensure_database()
 
-    conn = connect_db()
-    cursor = conn.cursor()
+    try:
 
-    cursor.execute(
-        "SELECT COUNT(*) FROM tournament"
-    )
+        with open(
+            TOURNAMENT_FILE,
+            "r",
+            encoding="utf-8"
+        ) as file:
 
-    total = cursor.fetchone()[0]
+            return json.load(file)
 
-    conn.close()
+    except Exception:
 
-    return total
-
-
-def usuario_inscrito(user_id):
-
-    conn = connect_db()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        """
-        SELECT *
-        FROM tournament
-        WHERE user_id = ?
-        """,
-        (user_id,)
-    )
-
-    resultado = cursor.fetchone()
-
-    conn.close()
-
-    return resultado
+        return {
+            "active": False,
+            "name": "",
+            "max_players": MAX_PLAYERS,
+            "players": [],
+            "matches": [],
+            "champion": None
+        }
 
 
-# =========================
-# MODAL NORMAL
-# =========================
+def save_tournament(data):
 
-class NormalModal(
-    Modal,
-    title="Inscrição Normal"
-):
+    os.makedirs(DATABASE_FOLDER, exist_ok=True)
 
-    nome = TextInput(
-        label="Seu nome Discord (@)",
-        placeholder="@player",
-        max_length=100
+    with open(
+        TOURNAMENT_FILE,
+        "w",
+        encoding="utf-8"
+    ) as file:
+
+        json.dump(
+            data,
+            file,
+            indent=4,
+            ensure_ascii=False
+        )
+
+
+# ============================================================
+# EMBED
+# ============================================================
+
+def tournament_embed(data):
+
+    players = data.get("players", [])
+
+    max_players = data.get(
+        "max_players",
+        MAX_PLAYERS
     )
 
-    roblox = TextInput(
-        label="Nick no Roblox",
-        placeholder="Seu nick",
-        max_length=50
+    name = data.get(
+        "name",
+        "FAL-UP Tournament"
     )
 
-    convidado = TextInput(
-        label="Nome do amigo convidado",
-        placeholder="Nick do amigo",
-        max_length=50
+    embed = discord.Embed(
+        title=f"🏆 {name}",
+        description=(
+            "Inscrições abertas para o torneio!\n\n"
+            f"👥 **Jogadores:** "
+            f"`{len(players)}/{max_players}`\n\n"
+            "Clique no botão abaixo para se inscrever."
+        ),
+        color=discord.Color.gold()
     )
 
-    regras = TextInput(
-        label="Concorda com as regras? (sim)",
-        placeholder="sim",
-        max_length=10
-    )
+    if players:
 
+        lista = []
 
-    async def on_submit(
-        self,
-        interaction: discord.Interaction
-    ):
-
-        if usuario_inscrito(
-            interaction.user.id
+        for index, user_id in enumerate(
+            players,
+            start=1
         ):
 
-            return await interaction.response.send_message(
-                "❌ Você já está inscrito.",
-                ephemeral=True
+            lista.append(
+                f"**{index}.** <@{user_id}>"
             )
-
-        if total_inscritos() >= MAX_VAGAS:
-
-            return await interaction.response.send_message(
-                "❌ Todas as vagas foram preenchidas.",
-                ephemeral=True
-            )
-
-        if self.regras.value.lower() not in [
-            "sim",
-            "s",
-            "yes"
-        ]:
-
-            return await interaction.response.send_message(
-                "❌ Você precisa concordar com as regras.",
-                ephemeral=True
-            )
-
-        conn = connect_db()
-        cursor = conn.cursor()
-
-        cursor.execute(
-            """
-            INSERT INTO tournament (
-                user_id,
-                tipo,
-                nome,
-                roblox,
-                convidado,
-                validado
-            )
-
-            VALUES (?, ?, ?, ?, ?, 0)
-            """,
-            (
-                interaction.user.id,
-                "NORMAL",
-                self.nome.value,
-                self.roblox.value,
-                self.convidado.value
-            )
-        )
-
-        conn.commit()
-        conn.close()
-
-        canal = interaction.guild.get_channel(
-            LOGS_CHANNEL
-        )
-
-        embed = discord.Embed(
-            title="📩 NOVA INSCRIÇÃO",
-            color=discord.Color.green()
-        )
 
         embed.add_field(
-            name="👤 Usuário",
-            value=interaction.user.mention,
+            name="👥 Inscritos",
+            value="\n".join(lista),
             inline=False
         )
 
+    else:
+
         embed.add_field(
-            name="🎟 Tipo",
-            value="NORMAL",
+            name="👥 Inscritos",
+            value="Nenhum jogador inscrito.",
             inline=False
         )
 
-        embed.add_field(
-            name="🎮 Roblox",
-            value=self.roblox.value,
-            inline=False
-        )
+    embed.set_footer(
+        text="FAL-UP • Tournament System"
+    )
 
-        embed.add_field(
-            name="👥 Convidado",
-            value=self.convidado.value,
-            inline=False
-        )
-
-        if canal:
-
-            await canal.send(
-                embed=embed
-            )
-
-        await interaction.response.send_message(
-            "✅ Inscrição enviada para análise da staff.",
-            ephemeral=True
-        )
+    return embed
 
 
-# =========================
-# MODAL VIP
-# =========================
+# ============================================================
+# BOTÕES
+# ============================================================
 
-class VipModal(Modal):
-
-    def __init__(self, tipo):
-
-        super().__init__(
-            title=f"Inscrição {tipo}"
-        )
-
-        self.tipo = tipo
-
-        self.nome = TextInput(
-            label="Seu nome Discord (@)",
-            placeholder="@player",
-            max_length=100
-        )
-
-        self.roblox = TextInput(
-            label="Nick no Roblox",
-            placeholder="Seu nick",
-            max_length=50
-        )
-
-        self.regras = TextInput(
-            label="Concorda com as regras? (sim)",
-            placeholder="sim",
-            max_length=10
-        )
-
-        self.add_item(
-            self.nome
-        )
-
-        self.add_item(
-            self.roblox
-        )
-
-        self.add_item(
-            self.regras
-        )
-
-
-    async def on_submit(
-        self,
-        interaction: discord.Interaction
-    ):
-
-        if usuario_inscrito(
-            interaction.user.id
-        ):
-
-            return await interaction.response.send_message(
-                "❌ Você já está inscrito.",
-                ephemeral=True
-            )
-
-        if total_inscritos() >= MAX_VAGAS:
-
-            return await interaction.response.send_message(
-                "❌ Todas as vagas foram preenchidas.",
-                ephemeral=True
-            )
-
-        if self.regras.value.lower() not in [
-            "sim",
-            "s",
-            "yes"
-        ]:
-
-            return await interaction.response.send_message(
-                "❌ Você precisa concordar com as regras.",
-                ephemeral=True
-            )
-
-        conn = connect_db()
-        cursor = conn.cursor()
-
-        cursor.execute(
-            """
-            INSERT INTO tournament (
-                user_id,
-                tipo,
-                nome,
-                roblox,
-                convidado,
-                validado
-            )
-
-            VALUES (?, ?, ?, ?, ?, 0)
-            """,
-            (
-                interaction.user.id,
-                self.tipo,
-                self.nome.value,
-                self.roblox.value,
-                None
-            )
-        )
-
-        conn.commit()
-        conn.close()
-
-        canal = interaction.guild.get_channel(
-            LOGS_CHANNEL
-        )
-
-        embed = discord.Embed(
-            title="📩 NOVA INSCRIÇÃO",
-            color=discord.Color.gold()
-        )
-
-        embed.add_field(
-            name="👤 Usuário",
-            value=interaction.user.mention,
-            inline=False
-        )
-
-        embed.add_field(
-            name="🎟 Tipo",
-            value=self.tipo,
-            inline=False
-        )
-
-        embed.add_field(
-            name="🎮 Roblox",
-            value=self.roblox.value,
-            inline=False
-        )
-
-        if canal:
-
-            await canal.send(
-                embed=embed
-            )
-
-        await interaction.response.send_message(
-            (
-                "✅ Inscrição enviada.\n\n"
-                "📩 Abra um ticket para realizar a compra "
-                "e aguarde a validação da staff."
-            ),
-            ephemeral=True
-        )
-
-
-# =========================
-# SELECT MENU
-# =========================
-
-class TournamentSelect(Select):
-
-    def __init__(self):
-
-        options = [
-
-            discord.SelectOption(
-                label="Normal",
-                description="Grátis • convidar 1 amigo",
-                emoji="📌",
-                value="NORMAL"
-            ),
-
-            discord.SelectOption(
-                label="VIP",
-                description="10 Robux",
-                emoji="💎",
-                value="VIP"
-            ),
-
-            discord.SelectOption(
-                label="MEGAVIP",
-                description="50 Robux",
-                emoji="🔥",
-                value="MEGAVIP"
-            )
-        ]
-
-        super().__init__(
-            placeholder="Escolha sua inscrição",
-            options=options,
-            min_values=1,
-            max_values=1
-        )
-
-
-    async def callback(
-        self,
-        interaction: discord.Interaction
-    ):
-
-        escolha = self.values[0]
-
-        if escolha == "NORMAL":
-
-            await interaction.response.send_modal(
-                NormalModal()
-            )
-
-        elif escolha == "VIP":
-
-            await interaction.response.send_modal(
-                VipModal("VIP")
-            )
-
-        elif escolha == "MEGAVIP":
-
-            await interaction.response.send_modal(
-                VipModal("MEGAVIP")
-            )
-
-
-# =========================
-# VIEW
-# =========================
-
-class TournamentView(View):
+class TournamentView(discord.ui.View):
 
     def __init__(self):
 
@@ -456,181 +163,492 @@ class TournamentView(View):
             timeout=None
         )
 
-        self.add_item(
-            TournamentSelect()
-        )
+    # --------------------------------------------------------
+    # INSCREVER
+    # --------------------------------------------------------
 
+    @discord.ui.button(
+        label="Inscrever-se",
+        emoji="📝",
+        style=discord.ButtonStyle.success,
+        custom_id="fal_tournament_join"
+    )
+    async def join(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
 
-# =========================
-# SETUP
-# =========================
+        data = load_tournament()
 
-def setup_tournament(bot):
+        if not data.get("active", False):
 
-    @bot.command()
-    async def torneio(ctx):
-
-        if ctx.channel.id != REGISTRO_CHANNEL:
+            await interaction.response.send_message(
+                "❌ Não existe nenhum torneio aberto.",
+                ephemeral=True
+            )
 
             return
 
-        vagas = max(
-            0,
-            MAX_VAGAS - total_inscritos()
+        players = data.get(
+            "players",
+            []
         )
 
-        embed = discord.Embed(
-            title="🎟 INSCRIÇÕES — TORNEIO FAL",
-            description=(
-                "Escolha abaixo o tipo de inscrição.\n\n"
+        user_id = interaction.user.id
 
-                "📌 **NORMAL**\n"
-                "• Gratuito\n"
-                "• Necessário convidar 1 amigo\n\n"
+        if user_id in players:
 
-                "💎 **VIP — 10 Robux**\n"
-                "• Aprovação prioritária\n\n"
+            await interaction.response.send_message(
+                "❌ Você já está inscrito neste torneio.",
+                ephemeral=True
+            )
 
-                "🔥 **MEGAVIP — 50 Robux**\n"
-                "• Prioridade máxima\n\n"
+            return
 
-                f"🎮 **Vagas restantes: "
-                f"{vagas}/{MAX_VAGAS}**\n\n"
-
-                "⚠ Todas as inscrições passam "
-                "por validação da staff."
-            ),
-            color=discord.Color.red()
+        max_players = data.get(
+            "max_players",
+            MAX_PLAYERS
         )
 
-        embed.set_footer(
-            text="FAL • Torneio"
+        if len(players) >= max_players:
+
+            await interaction.response.send_message(
+                "❌ O torneio está lotado.",
+                ephemeral=True
+            )
+
+            return
+
+        players.append(user_id)
+
+        data["players"] = players
+
+        save_tournament(data)
+
+        try:
+
+            await interaction.message.edit(
+                embed=tournament_embed(data),
+                view=TournamentView()
+            )
+
+        except Exception:
+
+            pass
+
+        await interaction.response.send_message(
+            "✅ Você foi inscrito no torneio!",
+            ephemeral=True
         )
 
-        await ctx.send(
+
+    # --------------------------------------------------------
+    # SAIR
+    # --------------------------------------------------------
+
+    @discord.ui.button(
+        label="Sair",
+        emoji="❌",
+        style=discord.ButtonStyle.danger,
+        custom_id="fal_tournament_leave"
+    )
+    async def leave(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        data = load_tournament()
+
+        players = data.get(
+            "players",
+            []
+        )
+
+        user_id = interaction.user.id
+
+        if user_id not in players:
+
+            await interaction.response.send_message(
+                "❌ Você não está inscrito.",
+                ephemeral=True
+            )
+
+            return
+
+        players.remove(user_id)
+
+        data["players"] = players
+
+        save_tournament(data)
+
+        try:
+
+            await interaction.message.edit(
+                embed=tournament_embed(data),
+                view=TournamentView()
+            )
+
+        except Exception:
+
+            pass
+
+        await interaction.response.send_message(
+            "👋 Você saiu do torneio.",
+            ephemeral=True
+        )
+
+
+# ============================================================
+# COG
+# ============================================================
+
+class Tournament(commands.Cog):
+
+    def __init__(self, bot):
+
+        self.bot = bot
+
+
+    # ========================================================
+    # /torneio criar
+    # ========================================================
+
+    @app_commands.command(
+        name="torneio-criar",
+        description="Cria um novo torneio."
+    )
+    @app_commands.describe(
+        nome="Nome do torneio.",
+        vagas="Quantidade máxima de jogadores."
+    )
+    async def criar(
+        self,
+        interaction: discord.Interaction,
+        nome: str,
+        vagas: int = MAX_PLAYERS
+    ):
+
+        if not interaction.user.guild_permissions.administrator:
+
+            await interaction.response.send_message(
+                "❌ Apenas administradores podem criar torneios.",
+                ephemeral=True
+            )
+
+            return
+
+        if vagas < 2:
+
+            await interaction.response.send_message(
+                "❌ O torneio precisa ter pelo menos 2 jogadores.",
+                ephemeral=True
+            )
+
+            return
+
+        if vagas > 64:
+
+            await interaction.response.send_message(
+                "❌ O limite máximo é de 64 jogadores.",
+                ephemeral=True
+            )
+
+            return
+
+        data = load_tournament()
+
+        if data.get("active", False):
+
+            await interaction.response.send_message(
+                "❌ Já existe um torneio ativo.",
+                ephemeral=True
+            )
+
+            return
+
+        data = {
+            "active": True,
+            "name": nome,
+            "max_players": vagas,
+            "players": [],
+            "matches": [],
+            "champion": None
+        }
+
+        save_tournament(data)
+
+        embed = tournament_embed(data)
+
+        await interaction.response.send_message(
             embed=embed,
             view=TournamentView()
         )
 
 
-    # =========================
-    # VALIDAR
-    # =========================
+    # ========================================================
+    # /torneio cancelar
+    # ========================================================
 
-    @bot.command()
-    @commands.has_permissions(
-        administrator=True
+    @app_commands.command(
+        name="torneio-cancelar",
+        description="Cancela o torneio atual."
     )
-    async def validar(
-        ctx,
-        member: discord.Member
+    async def cancelar(
+        self,
+        interaction: discord.Interaction
     ):
 
-        conn = connect_db()
-        cursor = conn.cursor()
+        if not interaction.user.guild_permissions.administrator:
 
-        cursor.execute(
-            """
-            SELECT tipo, validado
-            FROM tournament
-            WHERE user_id = ?
-            """,
-            (member.id,)
+            await interaction.response.send_message(
+                "❌ Apenas administradores podem cancelar o torneio.",
+                ephemeral=True
+            )
+
+            return
+
+        data = load_tournament()
+
+        if not data.get("active", False):
+
+            await interaction.response.send_message(
+                "❌ Não existe nenhum torneio ativo.",
+                ephemeral=True
+            )
+
+            return
+
+        data["active"] = False
+
+        save_tournament(data)
+
+        await interaction.response.send_message(
+            "🛑 **Torneio cancelado.**"
         )
 
-        resultado = cursor.fetchone()
 
-        if not resultado:
+    # ========================================================
+    # /torneio status
+    # ========================================================
 
-            conn.close()
+    @app_commands.command(
+        name="torneio-status",
+        description="Mostra o status do torneio."
+    )
+    async def status(
+        self,
+        interaction: discord.Interaction
+    ):
 
-            return await ctx.send(
-                "❌ Usuário não encontrado."
+        data = load_tournament()
+
+        if not data.get("active", False):
+
+            await interaction.response.send_message(
+                "❌ Não existe nenhum torneio ativo.",
+                ephemeral=True
             )
 
-        tipo = resultado[0]
-        validado = resultado[1]
+            return
 
-        if validado:
-
-            conn.close()
-
-            return await ctx.send(
-                "❌ Esta inscrição já foi validada."
-            )
-
-        cursor.execute(
-            """
-            UPDATE tournament
-
-            SET validado = 1
-
-            WHERE user_id = ?
-            """,
-            (member.id,)
+        await interaction.response.send_message(
+            embed=tournament_embed(data)
         )
 
-        conn.commit()
-        conn.close()
 
-        # =========================
-        # CARGO
-        # =========================
+    # ========================================================
+    # /torneio sortear
+    # ========================================================
 
-        if tipo == "VIP":
+    @app_commands.command(
+        name="torneio-sortear",
+        description="Sorteia os confrontos do torneio."
+    )
+    async def sortear(
+        self,
+        interaction: discord.Interaction
+    ):
 
-            cargo = ctx.guild.get_role(
-                VIP_ROLE
+        if not interaction.user.guild_permissions.administrator:
+
+            await interaction.response.send_message(
+                "❌ Apenas administradores podem sortear os confrontos.",
+                ephemeral=True
             )
 
-            if cargo:
+            return
 
-                await member.add_roles(
-                    cargo
-                )
+        data = load_tournament()
 
-        elif tipo == "MEGAVIP":
+        if not data.get("active", False):
 
-            cargo = ctx.guild.get_role(
-                MEGAVIP_ROLE
+            await interaction.response.send_message(
+                "❌ Não existe nenhum torneio ativo.",
+                ephemeral=True
             )
 
-            if cargo:
+            return
 
-                await member.add_roles(
-                    cargo
-                )
-
-        # =========================
-        # CANAL VALIDADO
-        # =========================
-
-        canal = ctx.guild.get_channel(
-            VALIDADOS_CHANNEL
+        players = data.get(
+            "players",
+            []
         )
+
+        if len(players) < 2:
+
+            await interaction.response.send_message(
+                "❌ É necessário ter pelo menos 2 jogadores.",
+                ephemeral=True
+            )
+
+            return
+
+        random.shuffle(players)
+
+        matches = []
+
+        for i in range(
+            0,
+            len(players),
+            2
+        ):
+
+            player1 = players[i]
+
+            if i + 1 < len(players):
+
+                player2 = players[i + 1]
+
+            else:
+
+                player2 = None
+
+            matches.append({
+                "player1": player1,
+                "player2": player2,
+                "winner": None
+            })
+
+        data["matches"] = matches
+
+        save_tournament(data)
 
         embed = discord.Embed(
-            title="✅ INSCRIÇÃO VALIDADA",
+            title="🎲 CONFRONTOS SORTEADOS",
             description=(
-                f"{member.mention}\n\n"
-                f"🎟 **Tipo:** {tipo}\n\n"
-                "Boa sorte no torneio! 🔥"
+                f"🏆 **{data.get('name')}**"
             ),
-            color=discord.Color.green()
+            color=discord.Color.gold()
         )
 
-        if member.display_avatar:
+        for index, match in enumerate(
+            matches,
+            start=1
+        ):
 
-            embed.set_thumbnail(
-                url=member.display_avatar.url
+            p1 = f"<@{match['player1']}>"
+
+            if match["player2"]:
+
+                p2 = f"<@{match['player2']}>"
+
+
+                texto = (
+                    f"{p1} **VS** {p2}"
+                )
+
+            else:
+
+                texto = (
+                    f"{p1} **BYE**"
+                )
+
+            embed.add_field(
+                name=f"⚔️ Partida {index}",
+                value=texto,
+                inline=False
             )
 
-        if canal:
-
-            await canal.send(
-                embed=embed
-            )
-
-        await ctx.send(
-            "✅ Inscrição validada."
+        await interaction.response.send_message(
+            embed=embed
         )
+
+
+    # ========================================================
+    # /torneio encerrar
+    # ========================================================
+
+    @app_commands.command(
+        name="torneio-encerrar",
+        description="Encerra o torneio e define o campeão."
+    )
+    @app_commands.describe(
+        vencedor="Jogador vencedor."
+    )
+    async def encerrar(
+        self,
+        interaction: discord.Interaction,
+        vencedor: discord.Member
+    ):
+
+        if not interaction.user.guild_permissions.administrator:
+
+            await interaction.response.send_message(
+                "❌ Apenas administradores podem encerrar o torneio.",
+                ephemeral=True
+            )
+
+            return
+
+        data = load_tournament()
+
+        if not data.get("active", False):
+
+            await interaction.response.send_message(
+                "❌ Não existe nenhum torneio ativo.",
+                ephemeral=True
+            )
+
+            return
+
+        data["active"] = False
+
+        data["champion"] = vencedor.id
+
+        save_tournament(data)
+
+        embed = discord.Embed(
+            title="🏆 TORNEIO ENCERRADO!",
+            description=(
+                f"Parabéns a {vencedor.mention}!\n\n"
+                "👑 **CAMPEÃO DO TORNEIO**"
+            ),
+            color=discord.Color.gold()
+        )
+
+        embed.set_footer(
+            text="FAL-UP • Tournament System"
+        )
+
+        await interaction.response.send_message(
+            embed=embed
+        )
+
+
+# ============================================================
+# SETUP
+# ============================================================
+
+async def setup_tournament(bot):
+
+    ensure_database()
+
+    await bot.add_cog(
+        Tournament(bot)
+    )
+
+    bot.add_view(
+        TournamentView()
+    )
