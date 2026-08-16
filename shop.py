@@ -1,10 +1,8 @@
 import discord
-from discord.ext import commands, tasks
+from discord import app_commands
 import sqlite3
 
 DATABASE = "database/database.db"
-
-SHOP_CHANNEL = 1506470884381167726
 
 PROTECTION_ROLE = 1499609557138407424
 BOOST_ROLE = 1499608761592053840
@@ -68,6 +66,12 @@ def get_player(uid):
 
     conn.close()
 
+    if not data:
+        return {
+            "coins": 0,
+            "shop_week": 0
+        }
+
     return {
         "coins": data[0],
         "shop_week": data[1]
@@ -81,11 +85,9 @@ def update_player(uid, coins, shop_week):
 
     cursor.execute("""
     UPDATE players
-
     SET
         coins = ?,
         shop_week = ?
-
     WHERE user_id = ?
     """, (
         coins,
@@ -139,8 +141,13 @@ def setup_shop(bot):
     # LOJA
     # =========================
 
-    @bot.command()
-    async def loja(ctx):
+    @bot.tree.command(
+        name="loja",
+        description="Veja os itens disponíveis na loja Ranked."
+    )
+    async def loja(
+        interaction: discord.Interaction
+    ):
 
         embed = discord.Embed(
             title="🛒 LOJA RANKED",
@@ -163,10 +170,10 @@ def setup_shop(bot):
                 "3 compras por semana.\n\n"
 
                 "📌 **Como comprar:**\n"
-                "`!buy protection`\n"
-                "`!buy boost`\n"
-                "`!buy curse`\n"
-                "`!buy season`"
+                "`/buy protection`\n"
+                "`/buy boost`\n"
+                "`/buy curse`\n"
+                "`/buy season`"
             ),
             color=discord.Color.gold()
         )
@@ -175,7 +182,7 @@ def setup_shop(bot):
             text="FAL • Ranked Shop"
         )
 
-        await ctx.send(
+        await interaction.response.send_message(
             embed=embed
         )
 
@@ -184,31 +191,46 @@ def setup_shop(bot):
     # COMPRAR
     # =========================
 
-    @bot.command()
-    async def buy(ctx, item=None):
-
-        if item is None:
-
-            return await ctx.send(
-                "❌ Informe o item que deseja comprar.\n"
-                "Exemplo: `!buy protection`"
+    @bot.tree.command(
+        name="buy",
+        description="Compre um item da loja Ranked."
+    )
+    @app_commands.describe(
+        item="Item que deseja comprar."
+    )
+    @app_commands.choices(
+        item=[
+            app_commands.Choice(
+                name="🛡 Proteção Troféus",
+                value="protection"
+            ),
+            app_commands.Choice(
+                name="🧪 Boost x2",
+                value="boost"
+            ),
+            app_commands.Choice(
+                name="💀 Maldição Sombria",
+                value="curse"
+            ),
+            app_commands.Choice(
+                name="🧬 Proteção Season",
+                value="season"
             )
+        ]
+    )
+    async def buy(
+        interaction: discord.Interaction,
+        item: app_commands.Choice[str]
+    ):
 
-        item = item.lower()
-
-        if item not in LOJA:
-
-            return await ctx.send(
-                "❌ Item inválido.\n"
-                "Use: `protection`, `boost`, `curse` ou `season`."
-            )
+        item_key = item.value
 
         create_player(
-            ctx.author.id
+            interaction.user.id
         )
 
         player = get_player(
-            ctx.author.id
+            interaction.user.id
         )
 
         # =========================
@@ -217,45 +239,49 @@ def setup_shop(bot):
 
         if player["shop_week"] >= 3:
 
-            return await ctx.send(
+            return await interaction.response.send_message(
                 "❌ Você atingiu o limite semanal "
-                "de compras. **(3/3)**"
+                "de compras. **(3/3)**",
+                ephemeral=True
             )
 
         # =========================
         # CARGO
         # =========================
 
-        cargo = ctx.guild.get_role(
-            LOJA[item]["cargo"]
+        cargo = interaction.guild.get_role(
+            LOJA[item_key]["cargo"]
         )
 
         if cargo is None:
 
-            return await ctx.send(
-                "❌ O cargo deste item não foi encontrado."
+            return await interaction.response.send_message(
+                "❌ O cargo deste item não foi encontrado.",
+                ephemeral=True
             )
 
-        if cargo in ctx.author.roles:
+        if cargo in interaction.user.roles:
 
-            return await ctx.send(
-                "❌ Você já possui este item."
+            return await interaction.response.send_message(
+                "❌ Você já possui este item.",
+                ephemeral=True
             )
 
         # =========================
         # PREÇO
         # =========================
 
-        preco = LOJA[item]["preco"]
+        preco = LOJA[item_key]["preco"]
 
         if player["coins"] < preco:
 
-            return await ctx.send(
+            return await interaction.response.send_message(
                 (
                     f"❌ Coins insuficientes.\n"
                     f"Você possui **{player['coins']}🪙** "
                     f"e precisa de **{preco}🪙**."
-                )
+                ),
+                ephemeral=True
             )
 
         # =========================
@@ -266,14 +292,14 @@ def setup_shop(bot):
         player["shop_week"] += 1
 
         update_player(
-            ctx.author.id,
+            interaction.user.id,
             player["coins"],
             player["shop_week"]
         )
 
         try:
 
-            await ctx.author.add_roles(
+            await interaction.user.add_roles(
                 cargo
             )
 
@@ -286,14 +312,16 @@ def setup_shop(bot):
             player["shop_week"] -= 1
 
             update_player(
-                ctx.author.id,
+                interaction.user.id,
                 player["coins"],
                 player["shop_week"]
             )
 
-            return await ctx.send(
+            return await interaction.response.send_message(
                 "❌ Não consegui adicionar o cargo. "
-                "Verifique as permissões do bot."
+                "Verifique as permissões e a posição "
+                "do cargo do bot.",
+                ephemeral=True
             )
 
         # =========================
@@ -303,8 +331,8 @@ def setup_shop(bot):
         embed = discord.Embed(
             title="✅ Compra realizada!",
             description=(
-                f"{ctx.author.mention} comprou "
-                f"**{LOJA[item]['nome']}**."
+                f"{interaction.user.mention} comprou "
+                f"**{LOJA[item_key]['nome']}**."
             ),
             color=discord.Color.green()
         )
@@ -325,7 +353,7 @@ def setup_shop(bot):
             text="FAL • Ranked Shop"
         )
 
-        await ctx.send(
+        await interaction.response.send_message(
             embed=embed
         )
 
@@ -334,11 +362,23 @@ def setup_shop(bot):
     # RESET MANUAL
     # =========================
 
-    @bot.command()
-    @commands.has_permissions(
+    @bot.tree.command(
+        name="resetshop",
+        description="Reseta o limite semanal da loja."
+    )
+    @app_commands.default_permissions(
         administrator=True
     )
-    async def resetshop(ctx):
+    async def resetshop(
+        interaction: discord.Interaction
+    ):
+
+        if not interaction.user.guild_permissions.administrator:
+
+            return await interaction.response.send_message(
+                "❌ Você precisa ser administrador.",
+                ephemeral=True
+            )
 
         conn = connect_db()
         cursor = conn.cursor()
@@ -351,29 +391,6 @@ def setup_shop(bot):
         conn.commit()
         conn.close()
 
-        await ctx.send(
+        await interaction.response.send_message(
             "✅ Limite semanal da loja resetado."
         )
-
-
-# =========================
-# RESET AUTOMÁTICO
-# =========================
-
-@tasks.loop(hours=168)
-async def reset_shop_limits():
-
-    conn = connect_db()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-    UPDATE players
-    SET shop_week = 0
-    """)
-
-    conn.commit()
-    conn.close()
-
-    print(
-        "🛒 Limite semanal da loja resetado."
-    )
