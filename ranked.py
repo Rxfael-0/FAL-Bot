@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from discord import app_commands
 import sqlite3
 import json
 from datetime import datetime
@@ -207,22 +208,30 @@ def setup_ranked(bot):
     # PERFIL
     # =========================
 
-    @bot.command()
+    @bot.tree.command(
+        name="perfil",
+        description="Veja o perfil Ranked de um jogador."
+    )
+    @app_commands.describe(
+        member="Jogador que deseja consultar."
+    )
     async def perfil(
-        ctx,
+        interaction: discord.Interaction,
         member: discord.Member = None
     ):
 
         if member is None:
-            member = ctx.author
+            member = interaction.user
 
         player = get_player(
             member.id
         )
 
         if player is None:
-            return await ctx.send(
-                "❌ Não foi possível encontrar o jogador."
+
+            return await interaction.response.send_message(
+                "❌ Não foi possível encontrar o jogador.",
+                ephemeral=True
             )
 
         wins = player["wins"]
@@ -245,11 +254,9 @@ def setup_ranked(bot):
             color=discord.Color.blurple()
         )
 
-        if member.display_avatar:
-
-            embed.set_thumbnail(
-                url=member.display_avatar.url
-            )
+        embed.set_thumbnail(
+            url=member.display_avatar.url
+        )
 
         # =========================
         # RANKED
@@ -296,9 +303,7 @@ def setup_ranked(bot):
         # SEASONS
         # =========================
 
-        seasonwins = player[
-            "seasonwins"
-        ]
+        seasonwins = player["seasonwins"]
 
         if seasonwins:
 
@@ -309,9 +314,7 @@ def setup_ranked(bot):
 
         else:
 
-            texto_seasons = (
-                "Nenhuma season vencida."
-            )
+            texto_seasons = "Nenhuma season vencida."
 
         embed.add_field(
             name="🏁 Seasons",
@@ -323,7 +326,7 @@ def setup_ranked(bot):
             text="FAL • Ranked System"
         )
 
-        await ctx.send(
+        await interaction.response.send_message(
             embed=embed
         )
 
@@ -332,15 +335,36 @@ def setup_ranked(bot):
     # ADICIONAR TROFÉUS
     # =========================
 
-    @bot.command()
-    @commands.has_permissions(
+    @bot.tree.command(
+        name="addtrofeus",
+        description="Adiciona troféus a um jogador."
+    )
+    @app_commands.describe(
+        member="Jogador que receberá os troféus.",
+        quantidade="Quantidade de troféus."
+    )
+    @app_commands.default_permissions(
         administrator=True
     )
     async def addtrofeus(
-        ctx,
+        interaction: discord.Interaction,
         member: discord.Member,
         quantidade: int
     ):
+
+        if not interaction.user.guild_permissions.administrator:
+
+            return await interaction.response.send_message(
+                "❌ Apenas administradores podem usar este comando.",
+                ephemeral=True
+            )
+
+        if quantidade <= 0:
+
+            return await interaction.response.send_message(
+                "❌ A quantidade precisa ser maior que 0.",
+                ephemeral=True
+            )
 
         player = get_player(
             member.id
@@ -353,7 +377,7 @@ def setup_ranked(bot):
             player
         )
 
-        await ctx.send(
+        await interaction.response.send_message(
             f"🏆 {member.mention} recebeu "
             f"**{quantidade} troféus**."
         )
@@ -363,15 +387,36 @@ def setup_ranked(bot):
     # REMOVER TROFÉUS
     # =========================
 
-    @bot.command()
-    @commands.has_permissions(
+    @bot.tree.command(
+        name="removetrofeus",
+        description="Remove troféus de um jogador."
+    )
+    @app_commands.describe(
+        member="Jogador que perderá os troféus.",
+        quantidade="Quantidade de troféus."
+    )
+    @app_commands.default_permissions(
         administrator=True
     )
     async def removetrofeus(
-        ctx,
+        interaction: discord.Interaction,
         member: discord.Member,
         quantidade: int
     ):
+
+        if not interaction.user.guild_permissions.administrator:
+
+            return await interaction.response.send_message(
+                "❌ Apenas administradores podem usar este comando.",
+                ephemeral=True
+            )
+
+        if quantidade <= 0:
+
+            return await interaction.response.send_message(
+                "❌ A quantidade precisa ser maior que 0.",
+                ephemeral=True
+            )
 
         player = get_player(
             member.id
@@ -387,7 +432,7 @@ def setup_ranked(bot):
             player
         )
 
-        await ctx.send(
+        await interaction.response.send_message(
             f"🏆 Foram removidos "
             f"**{quantidade} troféus** de "
             f"{member.mention}."
@@ -398,14 +443,27 @@ def setup_ranked(bot):
     # WIN
     # =========================
 
-    @bot.command()
-    @commands.has_permissions(
+    @bot.tree.command(
+        name="win",
+        description="Registra uma vitória para um jogador."
+    )
+    @app_commands.describe(
+        member="Jogador que venceu."
+    )
+    @app_commands.default_permissions(
         administrator=True
     )
     async def win(
-        ctx,
+        interaction: discord.Interaction,
         member: discord.Member
     ):
+
+        if not interaction.user.guild_permissions.administrator:
+
+            return await interaction.response.send_message(
+                "❌ Apenas administradores podem usar este comando.",
+                ephemeral=True
+            )
 
         player = get_player(
             member.id
@@ -418,7 +476,7 @@ def setup_ranked(bot):
             player
         )
 
-        await ctx.send(
+        await interaction.response.send_message(
             f"🥇 Vitória registrada para "
             f"{member.mention}."
         )
@@ -428,14 +486,27 @@ def setup_ranked(bot):
     # LOSS
     # =========================
 
-    @bot.command()
-    @commands.has_permissions(
+    @bot.tree.command(
+        name="loss",
+        description="Registra uma derrota para um jogador."
+    )
+    @app_commands.describe(
+        member="Jogador que perdeu."
+    )
+    @app_commands.default_permissions(
         administrator=True
     )
     async def loss(
-        ctx,
+        interaction: discord.Interaction,
         member: discord.Member
     ):
+
+        if not interaction.user.guild_permissions.administrator:
+
+            return await interaction.response.send_message(
+                "❌ Apenas administradores podem usar este comando.",
+                ephemeral=True
+            )
 
         player = get_player(
             member.id
@@ -448,7 +519,7 @@ def setup_ranked(bot):
             player
         )
 
-        await ctx.send(
+        await interaction.response.send_message(
             f"❌ Derrota registrada para "
             f"{member.mention}."
         )
@@ -458,15 +529,29 @@ def setup_ranked(bot):
     # ADICIONAR MEDALHA
     # =========================
 
-    @bot.command()
-    @commands.has_permissions(
+    @bot.tree.command(
+        name="addmedal",
+        description="Adiciona uma medalha a um jogador."
+    )
+    @app_commands.describe(
+        member="Jogador que receberá a medalha.",
+        medalha="Nome ou tipo da medalha."
+    )
+    @app_commands.default_permissions(
         administrator=True
     )
-    async def add(
-        ctx,
+    async def addmedal(
+        interaction: discord.Interaction,
         member: discord.Member,
-        medalha
+        medalha: str
     ):
+
+        if not interaction.user.guild_permissions.administrator:
+
+            return await interaction.response.send_message(
+                "❌ Apenas administradores podem usar este comando.",
+                ephemeral=True
+            )
 
         player = get_player(
             member.id
@@ -486,9 +571,9 @@ def setup_ranked(bot):
 
         if medal in player["medals"]:
 
-            return await ctx.send(
-                "❌ Este jogador já possui "
-                "essa medalha."
+            return await interaction.response.send_message(
+                "❌ Este jogador já possui essa medalha.",
+                ephemeral=True
             )
 
         player["medals"].append(
@@ -521,7 +606,7 @@ def setup_ranked(bot):
                 f"🏅 **{medal}**"
             )
 
-        await ctx.send(
+        await interaction.response.send_message(
             f"✅ {member.mention} recebeu "
             f"a medalha {display}."
         )
@@ -531,15 +616,29 @@ def setup_ranked(bot):
     # REMOVER MEDALHA
     # =========================
 
-    @bot.command()
-    @commands.has_permissions(
+    @bot.tree.command(
+        name="removemedal",
+        description="Remove uma medalha de um jogador."
+    )
+    @app_commands.describe(
+        member="Jogador que perderá a medalha.",
+        medalha="Nome ou tipo da medalha."
+    )
+    @app_commands.default_permissions(
         administrator=True
     )
     async def removemedal(
-        ctx,
+        interaction: discord.Interaction,
         member: discord.Member,
-        medalha
+        medalha: str
     ):
+
+        if not interaction.user.guild_permissions.administrator:
+
+            return await interaction.response.send_message(
+                "❌ Apenas administradores podem usar este comando.",
+                ephemeral=True
+            )
 
         player = get_player(
             member.id
@@ -559,9 +658,9 @@ def setup_ranked(bot):
 
         if medal not in player["medals"]:
 
-            return await ctx.send(
-                "❌ Este jogador não possui "
-                "essa medalha."
+            return await interaction.response.send_message(
+                "❌ Este jogador não possui essa medalha.",
+                ephemeral=True
             )
 
         player["medals"].remove(
@@ -577,7 +676,7 @@ def setup_ranked(bot):
             player
         )
 
-        await ctx.send(
+        await interaction.response.send_message(
             f"✅ Medalha removida de "
             f"{member.mention}."
         )
@@ -587,16 +686,29 @@ def setup_ranked(bot):
     # SEASON WIN
     # =========================
 
-    @bot.command()
-    @commands.has_permissions(
+    @bot.tree.command(
+        name="seasonwin",
+        description="Registra uma season vencida por um jogador."
+    )
+    @app_commands.describe(
+        member="Jogador que venceu a season.",
+        season="Nome da season."
+    )
+    @app_commands.default_permissions(
         administrator=True
     )
     async def seasonwin(
-        ctx,
+        interaction: discord.Interaction,
         member: discord.Member,
-        *,
-        season
+        season: str
     ):
+
+        if not interaction.user.guild_permissions.administrator:
+
+            return await interaction.response.send_message(
+                "❌ Apenas administradores podem usar este comando.",
+                ephemeral=True
+            )
 
         player = get_player(
             member.id
@@ -604,9 +716,9 @@ def setup_ranked(bot):
 
         if season in player["seasonwins"]:
 
-            return await ctx.send(
-                "❌ Esta season já está "
-                "registrada."
+            return await interaction.response.send_message(
+                "❌ Esta season já está registrada.",
+                ephemeral=True
             )
 
         player["seasonwins"].append(
@@ -618,7 +730,7 @@ def setup_ranked(bot):
             player
         )
 
-        await ctx.send(
+        await interaction.response.send_message(
             f"🏆 {member.mention} venceu "
             f"a **{season}**!"
         )
@@ -628,15 +740,36 @@ def setup_ranked(bot):
     # PARTIDA
     # =========================
 
-    @bot.command()
-    @commands.has_permissions(
+    @bot.tree.command(
+        name="partida",
+        description="Registra uma partida entre dois jogadores."
+    )
+    @app_commands.describe(
+        vencedor="Jogador vencedor.",
+        perdedor="Jogador perdedor."
+    )
+    @app_commands.default_permissions(
         administrator=True
     )
     async def partida(
-        ctx,
+        interaction: discord.Interaction,
         vencedor: discord.Member,
         perdedor: discord.Member
     ):
+
+        if not interaction.user.guild_permissions.administrator:
+
+            return await interaction.response.send_message(
+                "❌ Apenas administradores podem usar este comando.",
+                ephemeral=True
+            )
+
+        if vencedor.id == perdedor.id:
+
+            return await interaction.response.send_message(
+                "❌ O vencedor e o perdedor não podem ser a mesma pessoa.",
+                ephemeral=True
+            )
 
         winner = get_player(
             vencedor.id
@@ -649,20 +782,20 @@ def setup_ranked(bot):
         winner["wins"] += 1
         loser["losses"] += 1
 
+        data = datetime.now().strftime(
+            "%d/%m/%Y"
+        )
+
         winner["partidas"].append({
             "resultado": "win",
             "adversario": perdedor.id,
-            "data": datetime.now().strftime(
-                "%d/%m/%Y"
-            )
+            "data": data
         })
 
         loser["partidas"].append({
             "resultado": "loss",
             "adversario": vencedor.id,
-            "data": datetime.now().strftime(
-                "%d/%m/%Y"
-            )
+            "data": data
         })
 
         save_player(
@@ -675,7 +808,7 @@ def setup_ranked(bot):
             loser
         )
 
-        await ctx.send(
+        await interaction.response.send_message(
             (
                 f"🏆 Vitória: {vencedor.mention}\n"
                 f"❌ Derrota: {perdedor.mention}"
@@ -687,22 +820,26 @@ def setup_ranked(bot):
     # PARTIDAS
     # =========================
 
-    @bot.command()
+    @bot.tree.command(
+        name="partidas",
+        description="Veja o histórico de partidas de um jogador."
+    )
+    @app_commands.describe(
+        member="Jogador que deseja consultar."
+    )
     async def partidas(
-        ctx,
+        interaction: discord.Interaction,
         member: discord.Member = None
     ):
 
         if member is None:
-            member = ctx.author
+            member = interaction.user
 
         player = get_player(
             member.id
         )
 
-        registros = player[
-            "partidas"
-        ][-15:]
+        registros = player["partidas"][-15:]
 
         embed = discord.Embed(
             title=(
@@ -710,6 +847,10 @@ def setup_ranked(bot):
                 f"{member.display_name}"
             ),
             color=discord.Color.blurple()
+        )
+
+        embed.set_thumbnail(
+            url=member.display_avatar.url
         )
 
         if not registros:
@@ -724,9 +865,7 @@ def setup_ranked(bot):
 
             for partida_data in registros:
 
-                if partida_data[
-                    "resultado"
-                ] == "win":
+                if partida_data["resultado"] == "win":
 
                     emoji = "🟢"
 
@@ -743,7 +882,11 @@ def setup_ranked(bot):
 
             embed.description = texto
 
-        await ctx.send(
+        embed.set_footer(
+            text="FAL • Ranked"
+        )
+
+        await interaction.response.send_message(
             embed=embed
         )
 
@@ -752,8 +895,13 @@ def setup_ranked(bot):
     # LEADERBOARD
     # =========================
 
-    @bot.command()
-    async def leaderboard(ctx):
+    @bot.tree.command(
+        name="leaderboard",
+        description="Veja o ranking dos jogadores por troféus."
+    )
+    async def leaderboard(
+        interaction: discord.Interaction
+    ):
 
         conn = connect_db()
         cursor = conn.cursor()
@@ -793,15 +941,19 @@ def setup_ranked(bot):
                 trofeus = row[1]
 
                 if index == 1:
+
                     posicao = "🥇"
 
                 elif index == 2:
+
                     posicao = "🥈"
 
                 elif index == 3:
+
                     posicao = "🥉"
 
                 else:
+
                     posicao = f"**{index}.**"
 
                 texto += (
@@ -815,7 +967,7 @@ def setup_ranked(bot):
             text="FAL • Ranked"
         )
 
-        await ctx.send(
+        await interaction.response.send_message(
             embed=embed
         )
 
@@ -824,9 +976,78 @@ def setup_ranked(bot):
     # TOP
     # =========================
 
-    @bot.command()
-    async def top(ctx):
+    @bot.tree.command(
+        name="top",
+        description="Veja o Top 15 do Ranked."
+    )
+    async def top(
+        interaction: discord.Interaction
+    ):
 
-        await leaderboard.callback(
-            ctx
+        conn = connect_db()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+        SELECT user_id, trofeus
+        FROM players
+        ORDER BY trofeus DESC
+        LIMIT 15
+        """)
+
+        rows = cursor.fetchall()
+
+        conn.close()
+
+        embed = discord.Embed(
+            title="🏆 TOP 15 — FAL RANKED",
+            color=discord.Color.gold()
+        )
+
+        if not rows:
+
+            embed.description = (
+                "❌ Nenhum jogador registrado."
+            )
+
+        else:
+
+            texto = ""
+
+            for index, row in enumerate(
+                rows,
+                start=1
+            ):
+
+                uid = row[0]
+                trofeus = row[1]
+
+                if index == 1:
+
+                    posicao = "🥇"
+
+                elif index == 2:
+
+                    posicao = "🥈"
+
+                elif index == 3:
+
+                    posicao = "🥉"
+
+                else:
+
+                    posicao = f"**{index}.**"
+
+                texto += (
+                    f"{posicao} <@{uid}> "
+                    f"— 🏆 **{trofeus}**\n"
+                )
+
+            embed.description = texto
+
+        embed.set_footer(
+            text="FAL • Ranked System"
+        )
+
+        await interaction.response.send_message(
+            embed=embed
         )
